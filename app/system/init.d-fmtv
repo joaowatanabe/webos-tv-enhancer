@@ -1,0 +1,5 @@
+#!/bin/sh
+# Copiado para /var/lib/webosbrew/init.d/fmtv pelo launcher. Roda no boot (Homebrew Channel).
+# Pra desinstalar: rm /var/lib/webosbrew/init.d/fmtv && rm -r /var/lib/webosbrew/fmtv
+[ -f /var/lib/webosbrew/fmtv/fmtvd.sh ] || exit 0
+setsid sh /var/lib/webosbrew/fmtv/fmtvd.sh boot > /dev/null 2>&1 < /dev/null &

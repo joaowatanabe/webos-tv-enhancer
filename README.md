@@ -1,0 +1,104 @@
+# lg-c1-launcher
+
+Launcher estilo Apple TV para TVs LG com **webOS 6** (feito e testado numa OLED C1, webOS 6.5.3).
+Fundo com vídeos aerial da Apple, dock só com os seus streamings, clima, modo relógio pensado pra OLED e, em TVs com root, a opção de virar a tela inicial da TV.
+
+Começou como fork do [FreeMyTvWebOS](https://github.com/danielthejoker18/FreeMyTvWebOS) (MIT) e foi reescrito do zero.
+
+## Recursos
+
+| | Precisa de root? |
+|---|---|
+| Fundo com 42 aerials da Apple por streaming (0 MB no disco), seletor por categoria ou preto OLED | não |
+| Dock só de streaming, que aprende o app mais usado em cada período do dia | não |
+| Clima via Open-Meteo (sem chave), próximas horas e condições | não |
+| Modo relógio OLED: tela preta, relógio serifado que flutua devagar, clima e frase do dia; vermelho escuro à noite | não |
+| Frase do dia gerada pelo Gemini (opcional, chave grátis) | não |
+| Fileiras de entradas (HDMI, AirPlay), ajustes rápidos e apps instalados | não |
+| **Abrir sempre no launcher** (ao ligar e no botão Home), botão "Home da LG" pra voltar à home original | **sim** |
+| Barrar o protetor de tela da LG enquanto o modo relógio está ativo (libera depois de 2 h) | **sim** |
+
+## Instalação
+
+### 1. Pré-requisitos
+
+- TV LG com webOS 6 e o app **Developer Mode** ativo ([guia oficial](https://webostv.developer.lge.com/develop/getting-started/developer-mode-app)).
+- No computador: Node.js e o CLI da LG:
+  ```bash
+  npm install -g @webos-tools/cli
+  ares-setup-device   # cadastre a TV; anote o nome que der pra ela (ex.: minhatv)
+  ```
+
+### 2. Sua configuração
+
+```bash
+git clone https://github.com/joaowatanabe/lg-c1-launcher.git
+cd lg-c1-launcher
+cp .env.example .env                       # DEVICE=<nome da TV no ares-setup-device>
+cp app/config.example.js app/config.js     # sua config pessoal (fica fora do git)
+```
+
+Edite `app/config.js` com o que quiser mudar. Tudo que você não definir vem de `config.example.js`:
+
+```js
+window.LAUNCHER_CONFIG = {
+    name: 'Ana',
+    city: { name: 'Curitiba', lat: -25.4284, lon: -49.2733, timezone: 'America/Sao_Paulo' },
+    geminiKey: '',        // opcional: https://aistudio.google.com/apikey
+    rootDaemon: false     // true só se a TV tiver root + Homebrew Channel
+};
+```
+
+- **Dock:** copie o array `dock` do `config.example.js` e reordene/remova. O `id` de cada app sai de `ares-install --device <tv> --list`.
+- **Entradas:** o array `inputs` define a fileira de HDMI/AirPlay (ex.: `{ icon: 'brand:playstation4', cap: 'PS5 · HDMI 2', app: 'com.webos.app.hdmi2' }`).
+
+### 3. Instalar
+
+```bash
+./scripts/deploy.sh     # empacota, instala e abre na TV
+```
+
+Ao atualizar, suba a `version` em `app/appinfo.json` antes.
+
+## Root (opcional)
+
+Com a TV rooteada e o [Homebrew Channel](https://github.com/webosbrew/webos-homebrew-channel) com o serviço elevado, ligue `rootDaemon: true`. Na primeira abertura, o launcher instala um serviço pequeno (`app/system/fmtvd.sh`) em `/var/lib/webosbrew/`, que roda no boot e:
+
+- abre o launcher quando a TV liga e quando a home da LG aparece (botão Home, sair de um app);
+- barra o protetor de tela da LG enquanto o launcher está na frente.
+
+Pra voltar à home original: **Ajustes rápidos → Home da LG** (vale até você abrir outro app) ou **Abrir sempre aqui: não** (desliga de vez). Tem uma trava anti-loop: no máximo 3 aberturas por minuto. Detalhes e desinstalação em [`docs/specs/001-home-daemon.md`](docs/specs/001-home-daemon.md).
+
+## Controle
+
+Setas navegam · **OK** abre · **Voltar** sobe pro dock ou fecha o seletor · qualquer tecla sai do modo relógio.
+
+## Limites do webOS 6 (Chromium 79)
+
+- **Nada de `backdrop-filter` sobre o vídeo.** O vídeo roda num plano de hardware que o blur não enxerga: vira faixa preta e deixa tudo lento.
+- **Um único `<video>`.** Dois vídeos 2K decodificando juntos pesam na TV.
+- **Sem `cqw`, `aspect-ratio` nem `gap` em flexbox.** O layout usa px fixos pra 1920×1080.
+- **JS em ES5** e sombras curtas (glow grande custa caro a cada passo das setas).
+
+## Estrutura
+
+```
+app/
+  index.html            launcher inteiro (HTML + CSS + JS)
+  config.example.js     configuração padrão (versionada)
+  config.js             sua configuração (gitignored)
+  system/fmtvd.sh       serviço root opcional
+  system/init.d-fmtv    gancho de boot do Homebrew Channel
+  assets/brands/        logos (fontes em SOURCES.md)
+scripts/deploy.sh
+docs/roadmap.md, docs/specs/
+```
+
+## Segurança
+
+- `app/config.js` e `.env` ficam fora do git. Não versione chaves.
+- A chave do Gemini vai dentro do `.ipk` instalado na TV (é um app web, roda no cliente). Restrinja a chave à Generative Language API no Google Cloud.
+
+## Créditos e licença
+
+MIT. Base: FreeMyTvWebOS, © 2026 Daniel. Catálogo de aerials levantado do Lumen Launcher; vídeos servidos pela Apple. Logos são marcas dos respectivos donos, usados só como atalhos de app.

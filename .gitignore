@@ -1,0 +1,11 @@
+# Build
+dist/
+*.ipk
+
+# Segredos e config pessoal
+.env
+.env.*
+!.env.example
+app/config.js
+
+.DS_Store

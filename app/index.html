@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>Free My TV</title>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap">
+    <script src="webOSTV.js"></script>
+    <script src="config.example.js"></script>
+    <script src="config.js"></script>
+    <style>
+        /* Launcher estilo Apple TV — design aprovado em 2026-10-28.
+           Tela fixa 1920x1080; o deck rola por dentro (home + 3 fileiras).
+           webOS 6.5 = Chromium 79: nada de cqw, aspect-ratio ou gap em flexbox. */
+        :root {
+            --ink: #f5f7fc;
+            --ink-dim: #b2b8c8;
+            --ink-faint: #767d92;
+            --panel: rgba(255, 255, 255, 0.06);
+            --panel-2: rgba(10, 12, 18, 0.30);
+            --panel-line: rgba(255, 255, 255, 0.10);
+            --panel-line-soft: rgba(255, 255, 255, 0.06);
+            --focus: #ffffff;
+            --focus-glow: rgba(255, 255, 255, 0.5);
+            --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --ease: cubic-bezier(.2, .75, .2, 1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-user-select: none; user-select: none; }
+
+        html, body {
+            width: 1920px; height: 1080px; overflow: hidden;
+            background: #000; color: var(--ink); font-family: var(--font);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* --- Fundo: aerial em vídeo, fallback preto OLED --- */
+        .bg { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; z-index: 0; background: #000; }
+        .bg video {
+            position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover;
+            opacity: 0; transition: opacity 1.6s ease;
+        }
+        .bg video.on { opacity: 1; }
+        .bg::after {
+            content: ""; position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+            background:
+                linear-gradient(180deg, rgba(0,0,0,.40) 0%, transparent 24%, transparent 46%, rgba(0,0,0,.82) 100%),
+                radial-gradient(120% 90% at 50% 38%, transparent 52%, rgba(0,0,0,.5) 100%);
+            transition: opacity 1.2s ease;
+        }
+        .bg .dim { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: #000; opacity: 0; transition: opacity 1.2s ease; }
+        body.night .bg .dim { opacity: .3; }
+
+        /* --- Tela / deck rolável --- */
+        .screen { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; z-index: 2; overflow: hidden; transition: opacity .9s ease; }
+        .deck { position: relative; transition: transform .34s var(--ease); }
+
+
+        .home { height: 1080px; display: flex; flex-direction: column; padding: 61px 69px 58px; }
+        .top { display: flex; align-items: flex-start; justify-content: space-between; }
+        .greet { font-size: 34px; font-weight: 600; letter-spacing: -0.015em; }
+        .greet small { display: block; font-size: 21px; font-weight: 400; color: var(--ink-dim); margin-top: 4px; }
+        .clock { text-align: right; line-height: 1.15; font-variant-numeric: tabular-nums; }
+        .clock .t { display: block; font-size: 50px; font-weight: 700; letter-spacing: -0.02em; }
+        .clock .d { font-size: 20px; color: var(--ink-dim); }
+
+        .lower { margin-top: auto; display: flex; flex-direction: column; }
+        .lower > * + * { margin-top: 24px; }
+        .hero .cat { font-size: 22px; color: var(--ink-dim); margin-bottom: 6px; letter-spacing: .01em; }
+        .hero .name { font-size: 90px; font-weight: 700; letter-spacing: -0.03em; line-height: .96; }
+
+        /* --- Dock (só streaming) --- */
+        .dock {
+            display: flex; padding: 16px 27px;
+            background: var(--panel); border: 1px solid var(--panel-line); border-radius: 38px;
+        }
+        .tile {
+            position: relative; flex: 1 1 0; height: 142px; border-radius: 23px;
+            display: flex; align-items: center; justify-content: center;
+            transition: transform .2s var(--ease), opacity .2s ease;
+        }
+        .tile + .tile { margin-left: 23px; }
+        .tile img { display: block; max-width: 56%; max-height: 46%; }
+        .tile img.wide { max-width: 70%; max-height: 40%; }
+        .tile .wd { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; }
+        .tile .label {
+            position: absolute; left: 0; right: 0; bottom: -28px; text-align: center;
+            font-size: 18px; color: var(--ink-dim); opacity: 0; transition: opacity .2s ease;
+        }
+        .tile.on { transform: translateY(-11px) scale(1.07); z-index: 3;
+            box-shadow: 0 0 0 5px var(--focus), 0 12px 28px rgba(0,0,0,.5); }
+        .tile.on .label { opacity: 1; }
+        body.in-dock .tile:not(.on) { opacity: .5; }
+
+        /* --- Widgets de clima --- */
+        .lower > .shelf { margin-top: 40px; }
+        .shelf { display: flex; }
+        .card {
+            flex: 1 1 0; min-width: 0; padding: 16px 29px 20px;
+            background: var(--panel-2); border: 1px solid var(--panel-line-soft); border-radius: 27px;
+        }
+        .card + .card { margin-left: 27px; }
+        .lbl { font-size: 18px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 12px; }
+        .wx-now { display: flex; align-items: center; }
+        .wx-now .ic { width: 61px; height: 61px; margin-right: 20px; }
+        .wx-now .temp { font-size: 65px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; margin-right: 22px; }
+        .wx-now .meta { font-size: 20px; color: var(--ink-dim); line-height: 1.4; }
+        .wx-now .meta b { color: var(--ink); font-weight: 600; }
+        .hours { display: flex; justify-content: space-between; }
+        .hr { display: flex; flex-direction: column; align-items: center; }
+        .hr .hh { font-size: 18px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+        .hr .ic { width: 35px; height: 35px; margin: 8px 0; }
+        .hr .tt { font-size: 21px; font-weight: 600; font-variant-numeric: tabular-nums; }
+        .cond { display: flex; flex-wrap: wrap; }
+        .cond div { width: 50%; font-size: 20px; color: var(--ink-dim); display: flex; flex-direction: column; margin-bottom: 8px; }
+        .cond b { font-size: 28px; color: var(--ink); font-weight: 600; letter-spacing: -0.01em; }
+        .ic { display: inline-block; }
+        .ic svg { width: 100%; height: 100%; display: block; }
+
+        /* --- Fileiras de baixo --- */
+        .rows { padding: 11px 69px 54px; }
+        .rail + .rail { margin-top: 32px; }
+        .rail .lbl { margin-bottom: 14px; }
+        .strip { display: flex; }
+        .stile { flex: 0 0 auto; width: 202px; }
+        .stile + .stile { margin-left: 21px; }
+        .stile .box {
+            height: 126px; border-radius: 21px; position: relative; overflow: hidden;
+            background: var(--panel-2); border: 1px solid var(--panel-line-soft); color: var(--ink-dim);
+            display: flex; align-items: center; justify-content: center;
+            transition: transform .2s var(--ease);
+        }
+        .stile .box svg { width: 48px; height: 48px; }
+        .stile .box img { max-width: 64%; max-height: 64%; }
+        .stile .box img.lp { max-width: 100%; max-height: 100%; }
+        .stile .cap { font-size: 18px; color: var(--ink-faint); text-align: center; margin-top: 10px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color .2s ease; }
+        .stile.on .box { background: rgba(255,255,255,.10); border-color: var(--focus); color: var(--ink);
+            transform: translateY(-7px) scale(1.05);
+            box-shadow: 0 0 0 4px var(--focus), 0 10px 24px rgba(0,0,0,.45); }
+        .stile.on .cap { color: var(--ink); }
+
+        /* --- Toast --- */
+        .toast {
+            position: absolute; z-index: 9; left: 50%; top: 52px; transform: translate(-50%, -20px);
+            padding: 14px 30px; border-radius: 30px; font-size: 21px;
+            background: rgba(20, 22, 30, .88); border: 1px solid var(--panel-line);
+            opacity: 0; transition: opacity .25s ease, transform .25s var(--ease); pointer-events: none;
+        }
+        .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+        /* --- Modo relógio (OLED): preto, pouca luz, bloco que flutua devagar pela tela --- */
+        .saver { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; z-index: 8; background: #000;
+            opacity: 0; visibility: hidden; transition: opacity 1.2s ease, visibility 0s linear 1.2s; }
+        body.saving .saver { opacity: 1; visibility: visible; transition: opacity 1.2s ease; }
+        .sv { position: absolute; left: 0; top: 0; width: 760px; color: #8d877c; transition: transform 40s linear; }
+        .sv.jump { transition: none; }
+        .sv-d { font-size: 21px; font-weight: 400; letter-spacing: .32em; text-transform: uppercase; }
+        .sv-t { font-family: "Instrument Serif", Georgia, serif; font-size: 300px; line-height: .86; letter-spacing: -0.02em;
+            color: #d4cdc1; font-variant-numeric: tabular-nums; margin: 20px 0 6px -8px; }
+        .sv-colon { animation: sv-blink 2s ease-in-out infinite; }
+        @keyframes sv-blink { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+        .sv-bar { position: relative; height: 2px; background: #1a1916; margin-bottom: 34px; overflow: hidden; }
+        .sv-bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; background: #b0603f;
+            transform-origin: left; animation: sv-sec 60s linear infinite; }
+        @keyframes sv-sec { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+        .sv-w { display: flex; align-items: center; font-size: 30px; font-weight: 300; color: #a8a297; }
+        .sv-w .ic { width: 40px; height: 40px; margin-right: 16px; opacity: .8; }
+        .sv-h { font-size: 22px; font-weight: 300; margin-top: 12px; font-variant-numeric: tabular-nums; }
+        .sv-q { font-family: "Instrument Serif", Georgia, serif; font-style: italic; font-size: 36px; line-height: 1.25;
+            color: #a8a297; margin-top: 34px; }
+        .sv-q:empty { display: none; }
+        /* À noite tudo vira vermelho escuro de baixa luminância */
+        body.night .sv, body.night .sv-t, body.night .sv-w, body.night .sv-q { color: #6a1c1c; }
+        body.night .sv-bar { background: #140606; }
+        body.night .sv-bar i { background: #4a1414; }
+        body.night .sv-w .ic { opacity: .35; }
+
+        /* --- Seletor de plano de fundo --- */
+        .picker { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; z-index: 7; background: rgba(0,0,0,.55);
+            display: none; align-items: center; justify-content: center; }
+        body.picking .picker { display: flex; }
+        .pk { width: 640px; padding: 34px 30px 26px; border-radius: 34px; background: rgba(16,18,24,.94); border: 1px solid var(--panel-line); }
+        .pk h2 { font-size: 30px; font-weight: 600; margin: 0 10px 20px; }
+        .pk-i { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-radius: 18px; font-size: 24px; color: var(--ink-dim); }
+        .pk-i small { font-size: 18px; color: var(--ink-faint); }
+        .pk-i.on { background: #fff; color: #000; }
+        .pk-i.on small { color: #444; }
+        .pk-i .ck { font-weight: 700; }
+    </style>
+</head>
+<body class="in-dock">
+    <div class="bg"><video id="aerial" muted playsinline preload="auto"></video><div class="dim"></div></div>
+
+    <div class="screen" id="screen"><div class="deck" id="deck">
+        <section class="home">
+            <div class="top">
+                <div class="greet"><span id="greet">Olá</span><small id="quote">Escolha por onde começar.</small></div>
+                <div class="clock"><span class="t" id="clock">--:--</span><span class="d" id="date"></span></div>
+            </div>
+            <div class="lower">
+                <div class="hero">
+                    <div class="cat" id="appCat"></div>
+                    <div class="name" id="appName"></div>
+                </div>
+                <div class="dock" id="dock"></div>
+                <div class="shelf">
+                    <div class="card">
+                        <div class="lbl" id="wxCity">Clima</div>
+                        <div class="wx-now"><span class="ic" id="wxIcon"></span><span class="temp" id="wxTemp">--°</span><span class="meta"><b id="wxDesc">Carregando…</b><br><span id="wxRange"></span></span></div>
+                    </div>
+                    <div class="card"><div class="lbl">Próximas horas</div><div class="hours" id="hours"></div></div>
+                    <div class="card">
+                        <div class="lbl">Condições</div>
+                        <div class="cond"><div>Pôr do sol<b id="wxSunset">--:--</b></div><div>Umidade<b id="wxHum">--%</b></div><div>Vento<b id="wxWind">-- km/h</b></div><div>Índice UV<b id="wxUv">--</b></div></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <section class="rows" id="rows"></section>
+    </div></div>
+
+    <div class="toast" id="toast"></div>
+
+    <div class="picker" id="picker"><div class="pk"><h2>Plano de fundo</h2><div id="pkList"></div></div></div>
+
+    <div class="saver" id="saver"><div class="sv" id="sv">
+        <div class="sv-d" id="svDate"></div>
+        <div class="sv-t"><span id="svH">--</span><span class="sv-colon">:</span><span id="svM">--</span></div>
+        <div class="sv-bar"><i id="svBar"></i></div>
+        <div class="sv-w"><span class="ic" id="svIcon"></span><span id="svWx"></span></div>
+        <div class="sv-h" id="svHours"></div>
+        <div class="sv-q" id="svQuote"></div>
+    </div></div>
+
+    <script>
+        // Config: app/config.example.js (padrões) + app/config.js (pessoal, fora do git).
+        var CFG = (function() {
+            var base = window.LAUNCHER_DEFAULTS || {}, mine = window.LAUNCHER_CONFIG || {}, out = {}, k;
+            for (k in base) out[k] = base[k];
+            for (k in mine) out[k] = mine[k];
+            return out;
+        })();
+        var CITY = CFG.city;
+        var DOCK = CFG.dock;
+
+        var ICON = {
+            sun: '<svg viewBox="0 0 24 24" fill="none" stroke="#ffd27a" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/></svg>',
+            pcloud: '<svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-width="1.6"><g stroke="#ffd27a"><circle cx="8.5" cy="8" r="3"/><path d="M8.5 2.6v1.4M3.1 8h1.4M4.7 4.2l1 1"/></g><path d="M8 18h9a3.2 3.2 0 0 0 .2-6.4A4.3 4.3 0 0 0 9 11.4 3.3 3.3 0 0 0 8 18Z" fill="rgba(180,196,224,.16)" stroke="#c7d2e8"/></svg>',
+            cloud: '<svg viewBox="0 0 24 24" fill="none" stroke="#c7d2e8" stroke-width="1.6" stroke-linecap="round"><path d="M7.5 18h9a3.4 3.4 0 0 0 .2-6.8A4.6 4.6 0 0 0 8 11 3.5 3.5 0 0 0 7.5 18Z" fill="rgba(180,196,224,.16)"/></svg>',
+            rain: '<svg viewBox="0 0 24 24" fill="none" stroke="#c7d2e8" stroke-width="1.6" stroke-linecap="round"><path d="M7.5 15h9a3.4 3.4 0 0 0 .2-6.8A4.6 4.6 0 0 0 8 8 3.5 3.5 0 0 0 7.5 15Z" fill="rgba(180,196,224,.16)"/><path stroke="#7fb2ff" d="M9 18l-1 2.5M13 18l-1 2.5M17 18l-1 2.5"/></svg>',
+            storm: '<svg viewBox="0 0 24 24" fill="none" stroke="#c7d2e8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 15h9a3.4 3.4 0 0 0 .2-6.8A4.6 4.6 0 0 0 8 8 3.5 3.5 0 0 0 7.5 15Z" fill="rgba(180,196,224,.16)"/><path stroke="#ffd27a" d="M13 15l-2 3.5h3L12 22"/></svg>',
+            fog: '<svg viewBox="0 0 24 24" fill="none" stroke="#c7d2e8" stroke-width="1.6" stroke-linecap="round"><path d="M4 9h16M3 13h18M5 17h14"/></svg>',
+            clear: '<svg viewBox="0 0 24 24" fill="none" stroke="#a9c3ff" stroke-width="1.6" stroke-linecap="round"><path d="M20 13.5A7.5 7.5 0 1 1 10.5 4a6 6 0 0 0 9.5 9.5Z" fill="rgba(140,170,255,.12)"/></svg>',
+            hdmi: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M3 9h18l-2.5 3H5.5L3 9Z"/><path d="M6 12v3h12v-3"/></svg>',
+            airplay: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-1"/><path d="M12 15l5 6H7l5-6Z" fill="currentColor"/></svg>',
+            globe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg>',
+            picture: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 15l5-4 4 3 3-2 6 4"/><circle cx="8.5" cy="9" r="1.3"/></svg>',
+            sound: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4Z"/><path d="M17 8a5 5 0 0 1 0 8"/></svg>',
+            moon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M20 13.5A7.5 7.5 0 1 1 10.5 4a6 6 0 0 0 9.5 9.5Z"/></svg>',
+            gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.3l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2.2-1.3L14 2h-4l-.4 2.2a7 7 0 0 0-2.2 1.3l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.3l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2.2 1.3L10 22h4l.4-2.2a7 7 0 0 0 2.2-1.3l2.3 1 2-3.4-2-1.5A7 7 0 0 0 19 12Z"/></svg>',
+            store: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M17.5 14v7M14 17.5h7"/></svg>',
+            wall: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5Z"/><path d="M3 12.5l9 5 9-5M3 17l9 5 9-5"/></svg>',
+            lghome: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>',
+            pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/><path d="M9 10l2 2 4-4"/></svg>',
+            app: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4"/></svg>'
+        };
+
+        // Fileiras de baixo. "Apps instalados" é completada pelo listLaunchPoints.
+        var RAILS = [
+            { label: 'Entradas & dispositivos', items: CFG.inputs },
+            { label: 'Ajustes rápidos', items: [
+                { icon: 'wall', cap: 'Plano de fundo', action: 'picker' },
+                { icon: 'picture', cap: 'Modo de imagem', app: 'com.palm.app.settings', params: { target: 'picture' } },
+                { icon: 'sound', cap: 'Som', app: 'com.palm.app.settings', params: { target: 'sound' } },
+                { icon: 'moon', cap: 'Desligar a tela', action: 'screenOff' },
+                { icon: 'gear', cap: 'Configurações', app: 'com.palm.app.settings' }
+            ].concat(CFG.rootDaemon ? [
+                { icon: 'lghome', cap: 'Home da LG', action: 'lgHome' },
+                { icon: 'pin', cap: 'Abrir sempre aqui', action: 'autostart', id: 'autostartCap' }
+            ] : []) },
+            { label: 'Apps instalados', items: [
+                { icon: 'store', cap: 'Loja de apps', app: 'com.webos.app.discovery' }
+            ] }
+        ];
+
+        // Aerials da Apple (H.264 2K) por streaming HTTPS — nada ocupa o disco da TV.
+        // Catálogo tirado do Lumen, agrupado pro seletor de plano de fundo.
+        var SYLVAN = 'https://sylvan.apple.com/Videos/';
+        var AERIAL_SETS = {
+            espaco: ['comp_GMT026_363A_103NC_E1027_KOREA_JAPAN_NIGHT_v18_SDR_PS_20180907_SDR_2K_AVC.mov', 'comp_GMT312_162NC_139M_1041_AFRICA_NIGHT_v14_SDR_FINAL_20180706_SDR_2K_AVC.mov',
+                'comp_A009_C001_010181A_v09_SDR_PS_FINAL_20180725_SDR_2K_AVC.mov', 'comp_GMT329_113NC_396B_1105_ITALY_v03_SDR_FINAL_20180706_SDR_2K_AVC.mov',
+                'comp_A105_C002_v06_SDR_FINAL_25062018_SDR_2K_AVC.mov', 'comp_GMT314_139M_170NC_NORTH_AMERICA_AURORA__COMP_v22_SDR_20181206_v12CC_SDR_2K_AVC.mov',
+                'comp_A001_C004_1207W5_v23_SDR_FINAL_20180706_SDR_2K_AVC.mov', 'comp_A083_C002_1130KZ_v04_SDR_PS_FINAL_20180725_SDR_2K_AVC.mov',
+                'comp_GMT308_139K_142NC_CARIBBEAN_DAY_v09_SDR_FINAL_22062018_SDR_2K_AVC.mov', 'comp_GMT306_139NC_139J_3066_CALI_TO_VEGAS_v08_SDR_PS_20180824_SDR_2K_AVC.mov',
+                'comp_GMT329_117NC_401C_1037_IRELAND_TO_ASIA_v48_SDR_PS_FINAL_20180725_F0F6300_SDR_2K_AVC.mov', 'comp_A050_C004_1027V8_v16_SDR_FINAL_20180706_SDR_2K_AVC.mov',
+                'comp_A105_C003_0212CT_FLARE_v10_SDR_PS_FINAL_20180711_SDR_2K_AVC.mov', 'comp_A351_C001_v06_SDR_PS_20180725_SDR_2K_AVC.mov',
+                'comp_A001_C001_120530_v04_SDR_FINAL_20180706_SDR_2K_AVC.mov', 'comp_GMT110_112NC_364D_1054_AURORA_ANTARTICA__COMP_FINAL_v34_PS_SDR_20181107_SDR_2K_AVC.mov',
+                'comp_A103_C002_0205DG_v12_SDR_FINAL_20180706_SDR_2K_AVC.mov', 'comp_GMT307_136NC_134K_8277_NY_NIGHT_01_v25_SDR_PS_20180907_SDR_2K_AVC.mov',
+                'comp_GMT060_117NC_363D_1034_AUSTRALIA_v35_SDR_PS_FINAL_20180731_SDR_2K_AVC.mov', 'comp_A114_C001_0305OT_v10_SDR_FINAL_22062018_SDR_2K_AVC.mov'],
+            oceano: ['SE_A016_C009_SDR_20190717_SDR_2K_AVC.mov', 'PA_A001_C007_SDR_20190717_SDR_2K_AVC.mov', 'PA_A004_C003_SDR_20190719_SDR_2K_AVC.mov',
+                'KP_A010_C002_SDR_20190717_SDR_2K_AVC.mov', 'BO_A018_C029_SDR_20190812_SDR_2K_AVC.mov', 'BO_A012_C031_SDR_20190726_SDR_2K_AVC.mov',
+                'BO_A014_C008_SDR_20190719_SDR_2K_AVC.mov', 'BO_A014_C023_SDR_20190717_F240F3709_SDR_2K_AVC.mov', 'g201_WH_D004_L014_SDR_20191031_SDR_2K_AVC.mov',
+                'DL_B002_C011_SDR_20191122_SDR_2K_AVC.mov', 'RS_A008_C010_SDR_20191218_SDR_2K_AVC.mov', 'MEX_A006_C008_SDR_20190923_SDR_2K_AVC.mov',
+                'g201_CA_A016_C002_SDR_20191114_SDR_2K_AVC.mov', 'g201_AK_A003_C014_SDR_20191113_SDR_2K_AVC.mov', 'FK_U009_C004_SDR_20191220_SDR_2K_AVC.mov',
+                'CR_A009_C007_SDR_20191113_SDR_2K_AVC.mov'],
+            paisagens: ['G007_C004_UHD_SDR_2K_AVC.mov', 'P001_C005_UHD_SDR_2K_AVC.mov', 'Y004_C015_SDR_2K_AVC.mov', 'S003_C020_SDR_2K_AVC.mov',
+                'g201_TH_803_A001_8_SDR_20191031_SDR_2K_AVC.mov', 'comp_N013_C004_PS_v01_SDR_PS_20180925_F1970F7193_SDR_2K_AVC.mov']
+        };
+        var WALLPAPERS = [
+            { key: 'tudo', name: 'Aleatório', sub: 'todos os aerials' },
+            { key: 'espaco', name: 'Terra vista do espaço', sub: AERIAL_SETS.espaco.length + ' vídeos' },
+            { key: 'oceano', name: 'Fundo do mar', sub: AERIAL_SETS.oceano.length + ' vídeos' },
+            { key: 'paisagens', name: 'Paisagens', sub: AERIAL_SETS.paisagens.length + ' vídeos' },
+            { key: 'preto', name: 'Preto (OLED)', sub: 'sem vídeo, gasto mínimo' }
+        ];
+
+        function load(key, fallback) {
+            try { var v = JSON.parse(localStorage.getItem(key)); return v === null ? fallback : v; } catch (e) { return fallback; }
+        }
+        function save(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {} }
+
+        // WMO weather_code -> [descrição, ícone]
+        function wmo(code, isDay) {
+            var night = isDay === false;
+            if (code === 0) return ['Céu limpo', night ? 'clear' : 'sun'];
+            if (code === 1 || code === 2) return [code === 1 ? 'Poucas nuvens' : 'Parcialmente nublado', night ? 'clear' : 'pcloud'];
+            if (code === 3) return ['Nublado', 'cloud'];
+            if (code === 45 || code === 48) return ['Neblina', 'fog'];
+            if (code >= 51 && code <= 57) return ['Garoa', 'rain'];
+            if (code >= 61 && code <= 67) return ['Chuva', 'rain'];
+            if (code >= 71 && code <= 77) return ['Neve', 'cloud'];
+            if (code >= 80 && code <= 82) return ['Pancadas de chuva', 'rain'];
+            if (code >= 95) return ['Tempestade', 'storm'];
+            return ['Tempo instável', 'cloud'];
+        }
+
+        function $(id) { return document.getElementById(id); }
+        function pad2(n) { return ('0' + n).slice(-2); }
+
+        // --- Toast ---
+        var toastTimer = null;
+        function showToast(msg, ms) {
+            var t = $('toast');
+            t.textContent = msg;
+            t.className = 'toast show';
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(function() { t.className = 'toast'; }, ms || 3000);
+        }
+
+        // --- Relógio ---
+        var DIAS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+        var MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+        function tick() {
+            var now = new Date(), h = now.getHours();
+            $('clock').textContent = pad2(h) + ':' + pad2(now.getMinutes());
+            $('date').textContent = DIAS[now.getDay()] + ', ' + now.getDate() + ' de ' + MESES[now.getMonth()];
+            var hi = h < 5 ? 'Boa noite' : h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+            $('greet').textContent = CFG.name ? hi + ', ' + CFG.name : hi;
+            document.body.classList.toggle('night', h >= 22 || h < 6);
+        }
+
+        // --- Clima (Open-Meteo) ---
+        function fetchWeather() {
+            if (typeof fetch !== 'function') return;
+            var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + CITY.lat + '&longitude=' + CITY.lon +
+                '&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code,is_day' +
+                '&hourly=temperature_2m,weather_code,is_day' +
+                '&daily=temperature_2m_max,temperature_2m_min,sunset,uv_index_max' +
+                '&timezone=' + encodeURIComponent(CITY.timezone || 'auto') + '&forecast_days=2';
+            fetch(url).then(function(res) { return res.json(); }).then(renderWeather).catch(function() {
+                $('wxDesc').textContent = 'Clima indisponível';
+            });
+        }
+
+        var lastWx = null;
+        function renderWeather(d) {
+            lastWx = d;
+            fetchQuote();
+            var cur = d.current, day = d.daily;
+            if (cur) {
+                var w = wmo(cur.weather_code, cur.is_day === 1);
+                $('wxTemp').textContent = Math.round(cur.temperature_2m) + '°';
+                $('wxDesc').textContent = w[0];
+                $('wxIcon').innerHTML = ICON[w[1]];
+                $('wxHum').textContent = Math.round(cur.relative_humidity_2m) + '%';
+                $('wxWind').textContent = Math.round(cur.wind_speed_10m) + ' km/h';
+            }
+            if (day) {
+                $('wxRange').textContent = 'Máx ' + Math.round(day.temperature_2m_max[0]) + '° · Mín ' + Math.round(day.temperature_2m_min[0]) + '°';
+                $('wxSunset').textContent = (day.sunset[0] || '').split('T')[1] || '--:--';
+                var uv = Math.round(day.uv_index_max[0]);
+                $('wxUv').textContent = uv + ' · ' + (uv <= 2 ? 'baixo' : uv <= 5 ? 'moderado' : uv <= 7 ? 'alto' : 'muito alto');
+            }
+            if (d.hourly && d.hourly.time) {
+                // Open-Meteo devolve hora local da cidade; assume a TV no mesmo fuso.
+                var now = new Date();
+                var key = now.getFullYear() + '-' + pad2(now.getMonth() + 1) + '-' + pad2(now.getDate()) + 'T' + pad2(now.getHours());
+                var start = 0;
+                for (var i = 0; i < d.hourly.time.length; i++) {
+                    if (d.hourly.time[i].slice(0, 13) > key) { start = i; break; }
+                }
+                var html = '';
+                for (var j = start; j < start + 5 && j < d.hourly.time.length; j++) {
+                    var hw = wmo(d.hourly.weather_code[j], d.hourly.is_day[j] === 1);
+                    html += '<div class="hr"><span class="hh">' + parseInt(d.hourly.time[j].slice(11, 13), 10) + 'h</span>' +
+                        '<span class="ic">' + ICON[hw[1]] + '</span>' +
+                        '<span class="tt">' + Math.round(d.hourly.temperature_2m[j]) + '°</span></div>';
+                }
+                $('hours').innerHTML = html;
+            }
+        }
+
+        // --- Fundo aerial: um só <video> (dois decodificando 2K ao mesmo tempo pesa na TV) ---
+        var wallpaper = load('fmtv_wallpaper', 'tudo'), playlist = [], aerialFails = 0;
+        var aerial = $('aerial');
+        function buildPlaylist() {
+            var list = wallpaper === 'tudo' ? AERIAL_SETS.espaco.concat(AERIAL_SETS.oceano, AERIAL_SETS.paisagens) : (AERIAL_SETS[wallpaper] || []);
+            playlist = list.slice();
+            for (var i = playlist.length - 1; i > 0; i--) { // embaralha
+                var j = Math.floor(Math.random() * (i + 1)), t = playlist[i];
+                playlist[i] = playlist[j]; playlist[j] = t;
+            }
+        }
+        function playAerial() {
+            aerial.className = '';
+            if (wallpaper === 'preto') { aerial.pause(); aerial.removeAttribute('src'); aerial.load(); return; }
+            if (!playlist.length) buildPlaylist();
+            var next = SYLVAN + playlist.shift();
+            setTimeout(function() {
+                aerial.src = next;
+                var p = aerial.play();
+                if (p && p.catch) p.catch(function() {});
+            }, 700);
+        }
+        aerial.addEventListener('playing', function() { aerial.className = 'on'; aerialFails = 0; });
+        aerial.addEventListener('ended', playAerial);
+        aerial.addEventListener('error', function() {
+            if (!aerial.getAttribute('src')) return;
+            // Sem rede: fica no preto OLED e tenta de novo mais tarde.
+            aerialFails++;
+            setTimeout(playAerial, aerialFails < 6 ? 500 : 120000);
+        });
+
+        // --- Seletor de plano de fundo ---
+        var pkIdx = 0;
+        function renderPicker() {
+            $('pkList').innerHTML = WALLPAPERS.map(function(w, i) {
+                return '<div class="pk-i' + (i === pkIdx ? ' on' : '') + '"><span>' + w.name + '<br><small>' + w.sub + '</small></span>' +
+                    (w.key === wallpaper ? '<span class="ck">✓</span>' : '') + '</div>';
+            }).join('');
+        }
+        function openPicker() {
+            pkIdx = 0;
+            for (var i = 0; i < WALLPAPERS.length; i++) if (WALLPAPERS[i].key === wallpaper) pkIdx = i;
+            renderPicker();
+            document.body.classList.add('picking');
+        }
+        function closePicker() { document.body.classList.remove('picking'); }
+        function choosePicker() {
+            wallpaper = WALLPAPERS[pkIdx].key;
+            save('fmtv_wallpaper', wallpaper);
+            buildPlaylist();
+            playAerial();
+            closePicker();
+            showToast('Plano de fundo: ' + WALLPAPERS[pkIdx].name);
+        }
+
+        // --- Dock que aprende: conta aberturas por período do dia ---
+        var usage = load('fmtv_usage', {});
+        var PERIODOS = ['de manhã', 'à tarde', 'à noite'];
+        function periodo() { var h = new Date().getHours(); return h >= 5 && h < 12 ? 0 : h >= 12 && h < 18 ? 1 : 2; }
+        function recordUse(appId) {
+            var u = usage[appId] || [0, 0, 0];
+            u[periodo()]++;
+            usage[appId] = u;
+            save('fmtv_usage', usage);
+        }
+        function learnedDockIndex() {
+            var best = -1, max = 2; // precisa de pelo menos 3 aberturas no período
+            for (var i = 0; i < DOCK.length; i++) {
+                var n = (usage[DOCK[i].id] || [0, 0, 0])[periodo()];
+                if (n > max) { max = n; best = i; }
+            }
+            return best;
+        }
+        function focusLearned() {
+            var i = learnedDockIndex();
+            if (i >= 0) go(0, i); else if (r === 0) render();
+        }
+
+        // --- Frase do dia (Gemini), no máximo uma chamada a cada 3 h ---
+        var quote = load('fmtv_quote', null);
+        function showQuote() {
+            var t = quote && quote.text || '';
+            if (t) $('quote').textContent = t;
+            $('svQuote').textContent = t;
+        }
+        function fetchQuote() {
+            var now = new Date(), slot = now.toDateString() + '#' + Math.floor(now.getHours() / 3);
+            if (quote && quote.slot === slot) { showQuote(); return; }
+            var d = lastWx;
+            if (!CFG.geminiKey || typeof fetch !== 'function' || !d || !d.current || !d.daily) return;
+            var w = wmo(d.current.weather_code, d.current.is_day === 1);
+            var ctx = DIAS[now.getDay()] + ', ' + now.getDate() + ' de ' + MESES[now.getMonth()] + ', ' + pad2(now.getHours()) + ':' + pad2(now.getMinutes()) +
+                ', ' + CITY.name + '. Agora ' + Math.round(d.current.temperature_2m) + '°, ' + w[0].toLowerCase() +
+                '; hoje máx ' + Math.round(d.daily.temperature_2m_max[0]) + '° e mín ' + Math.round(d.daily.temperature_2m_min[0]) +
+                '°; amanhã máx ' + Math.round(d.daily.temperature_2m_max[1]) + '°.';
+            var prompt = 'Escreva uma única frase curta (máximo 80 caracteres), em português do Brasil, para a tela inicial de uma TV' +
+                (CFG.name ? ' de ' + CFG.name : '') + '. Tom calmo e útil, como um bom assistente: comente o tempo ou o momento do dia ' +
+                'com uma dica prática ou observação gentil. Não cumprimente, não use o nome da pessoa, sem emoji, sem aspas. Contexto: ' + ctx;
+            fetch('https://generativelanguage.googleapis.com/v1beta/models/' + CFG.geminiModel + ':generateContent?key=' + encodeURIComponent(CFG.geminiKey), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.9, maxOutputTokens: 60 } })
+            }).then(function(res) { return res.json(); }).then(function(j) {
+                var t = j.candidates && j.candidates[0].content.parts[0].text;
+                if (!t) return;
+                quote = { slot: slot, text: t.replace(/\s+/g, ' ').replace(/^["“]|["”]$/g, '').trim() };
+                save('fmtv_quote', quote);
+                showQuote();
+            }).catch(function() {});
+        }
+
+        // --- Root (Homebrew Channel) e serviço fmtvd ---
+        function rootExec(cmd, cb) {
+            if (!CFG.rootDaemon || !window.webOS || !webOS.service) { if (cb) cb(null); return; }
+            try {
+                webOS.service.request('luna://org.webosbrew.hbchannel.service', {
+                    method: 'exec',
+                    parameters: { command: cmd },
+                    onSuccess: function(r) { if (cb) cb(r.stdoutString || ''); },
+                    onFailure: function() { if (cb) cb(null); }
+                });
+            } catch (e) { if (cb) cb(null); }
+        }
+        var autostartOn = true;
+        function installDaemon() {
+            // Copia o fmtvd do pacote pro /var/lib/webosbrew (sobrevive a reinstalar o app) e garante que está rodando.
+            var src = decodeURIComponent(location.pathname).replace(/\/[^\/]*$/, '') + '/system';
+            var d = '/var/lib/webosbrew/fmtv';
+            rootExec(
+                'S="' + src + '"; D=' + d + '; mkdir -p $D; ' +
+                'if [ "$(md5sum < $S/fmtvd.sh)" != "$(md5sum < $D/fmtvd.sh 2>/dev/null)" ]; then ' +
+                '  cp $S/fmtvd.sh $D/fmtvd.sh; [ -f /tmp/fmtvd.pid ] && kill -TERM -$(cat /tmp/fmtvd.pid) 2>/dev/null; rm -f /tmp/fmtvd.pid; fi; ' +
+                'cp $S/init.d-fmtv /var/lib/webosbrew/init.d/fmtv; chmod 755 /var/lib/webosbrew/init.d/fmtv $D/fmtvd.sh; ' +
+                'if ! { [ -f /tmp/fmtvd.pid ] && kill -0 $(cat /tmp/fmtvd.pid) 2>/dev/null; }; then setsid sh $D/fmtvd.sh > /dev/null 2>&1 < /dev/null & fi; ' +
+                'rm -f /tmp/fmtv-allow-screensaver; [ -f $D/autostart-off ] && echo off || echo on',
+                function(out) {
+                    if (out === null) return;
+                    autostartOn = out.indexOf('off') === -1;
+                    updateAutostartCap();
+                });
+        }
+        function updateAutostartCap() {
+            var el = $('autostartCap');
+            if (el) el.textContent = 'Abrir sempre aqui: ' + (autostartOn ? 'sim' : 'não');
+        }
+        function toggleAutostart() {
+            autostartOn = !autostartOn;
+            rootExec(autostartOn ? 'rm -f /var/lib/webosbrew/fmtv/autostart-off' : 'touch /var/lib/webosbrew/fmtv/autostart-off', function(out) {
+                if (out === null) { autostartOn = !autostartOn; showToast('Não consegui falar com o Homebrew Channel.'); }
+                else showToast(autostartOn ? 'A TV vai abrir sempre neste launcher.' : 'A TV volta a abrir na home da LG.', 4000);
+                updateAutostartCap();
+            });
+        }
+        function openLgHome() {
+            // Libera a home da LG até você abrir outro app.
+            rootExec('touch /tmp/fmtv-home-bypass', function() { launch('com.webos.app.home', null, 'Home da LG'); });
+        }
+
+        // --- Abrir apps ---
+        var pending = false;
+        function launch(appId, params, label) {
+            if (pending) return; // ignora cliques repetidos do controle
+            if (!window.webOS || !webOS.service || typeof webOS.service.request !== 'function') {
+                showToast('Prévia: abriria ' + label);
+                return;
+            }
+            pending = true;
+            var timer = setTimeout(function() { done('Sem resposta ao abrir ' + label + '.'); }, 8000);
+            function done(msg) { clearTimeout(timer); pending = false; if (msg) showToast(msg, 4000); }
+            showToast('Abrindo ' + label + '…', 2500);
+            try {
+                webOS.service.request('luna://com.webos.applicationManager', {
+                    method: 'launch',
+                    parameters: params ? { id: appId, params: params } : { id: appId },
+                    onSuccess: function(res) {
+                        if (!(res && res.returnValue === false)) recordUse(appId);
+                        done(res && res.returnValue === false ? 'Não deu pra abrir ' + label + '.' : null);
+                    },
+                    onFailure: function(err) {
+                        var t = (err && err.errorText) || '';
+                        done(/not (installed|found)|does not exist|unknown/i.test(t) ? label + ' não está instalado.' : 'Não deu pra abrir ' + label + '.');
+                    }
+                });
+            } catch (e) { done('Não deu pra abrir ' + label + '.'); }
+        }
+
+        function screenOff() {
+            if (!window.webOS || !webOS.service) { showToast('Prévia: desligaria a tela'); return; }
+            webOS.service.request('luna://com.webos.service.tvpower', {
+                method: 'power/turnOffScreen',
+                parameters: {},
+                onFailure: function() { showToast('Sem permissão pra desligar a tela por aqui.', 4000); }
+            });
+        }
+
+        // --- Grade de foco: grid[0] = dock, 1..3 = fileiras ---
+        var grid = [[]], actions = [[]], strips = [];
+        var dock = $('dock'), rowsEl = $('rows');
+
+        DOCK.forEach(function(app, i) {
+            var t = document.createElement('div');
+            t.className = 'tile';
+            t.style.background = app.bg;
+            t.innerHTML = (app.mark || '<img src="assets/brands/' + app.logo + '.svg" alt=""' + (app.wide ? ' class="wide"' : '') + '>') +
+                '<span class="label">' + app.name + '</span>';
+            t.addEventListener('click', function() { go(0, i); activate(); });
+            dock.appendChild(t);
+            grid[0].push(t);
+            actions[0].push(function() { launch(app.id, null, app.name); });
+        });
+
+        function railIcon(icon) {
+            if (icon.indexOf('brand:') === 0) return '<img src="assets/brands/' + icon.slice(6) + '.svg" alt="">';
+            if (icon.indexOf('img:') === 0) return '<img class="lp" src="' + icon.slice(4) + '" alt="">';
+            return ICON[icon] || ICON.app;
+        }
+
+        function addRailItem(row, it) {
+            var col = grid[row].length;
+            var s = document.createElement('div');
+            s.className = 'stile';
+            s.innerHTML = '<div class="box">' + railIcon(it.icon) + '</div><div class="cap"></div>';
+            s.lastChild.textContent = it.cap;
+            if (it.id) s.lastChild.id = it.id;
+            var img = s.querySelector('img.lp');
+            if (img) img.onerror = function() { img.parentNode.innerHTML = ICON.app; };
+            s.addEventListener('click', function() { go(row, col); activate(); });
+            strips[row].appendChild(s);
+            grid[row].push(s);
+            actions[row].push(function() {
+                if (it.action === 'screenOff') screenOff();
+                else if (it.action === 'picker') openPicker();
+                else if (it.action === 'lgHome') openLgHome();
+                else if (it.action === 'autostart') toggleAutostart();
+                else launch(it.app, it.params, it.cap);
+            });
+        }
+
+        RAILS.forEach(function(rail, ri) {
+            var row = ri + 1;
+            grid[row] = []; actions[row] = [];
+            var wrap = document.createElement('div');
+            wrap.className = 'rail';
+            wrap.innerHTML = '<div class="lbl">' + rail.label + '</div><div class="strip"></div>';
+            strips[row] = wrap.lastChild;
+            rowsEl.appendChild(wrap);
+            rail.items.forEach(function(it) { addRailItem(row, it); });
+        });
+
+        // --- Apps instalados (listLaunchPoints), sem repetir o que já está no dock/fileiras ---
+        var INSTALLED_ROW = 3, MAX_INSTALLED = 7;
+        var SKIP = /^(com\.webos\.app\.(hdmi\d|browser|discovery|livetv|home|inputpicker|externalinput.*|tvuserguide|notificationcenter|connectionwizard|miracast|photovideo|music)|com\.palm\.app\.settings|airplay|org\.webos\.freemytv)$/;
+        var DOCK_LIKE = /youtube|spotify|netflix|wbd|hbo|amazon|appletv|globoplay/i;
+        function iconUrl(lp) {
+            var icon = lp.largeIcon || lp.icon || '';
+            if (/^(https?:|file:|data:image\/)/i.test(icon)) return icon;
+            if (icon.charAt(0) === '/') return 'file://' + icon;
+            return '';
+        }
+        function addInstalled(lps) {
+            var added = 0;
+            lps.forEach(function(lp) {
+                var id = lp.id || lp.appId;
+                if (!id || added >= MAX_INSTALLED || SKIP.test(id) || DOCK_LIKE.test(id)) return;
+                var url = iconUrl(lp);
+                addRailItem(INSTALLED_ROW, { icon: url ? 'img:' + url : 'app', cap: lp.title || id, app: id });
+                added++;
+            });
+        }
+        function discoverApps() {
+            if (!window.webOS || !webOS.service) return;
+            try {
+                webOS.service.request('luna://com.webos.applicationManager', {
+                    method: 'listLaunchPoints',
+                    parameters: {},
+                    onSuccess: function(res) { if (res && res.launchPoints) addInstalled(res.launchPoints); }
+                });
+            } catch (e) {}
+        }
+
+        // --- Navegação por setas ---
+        var r = 0, c = 0, cols = [0, 0, 0, 0];
+        var deck = $('deck');
+        function go(nr, nc) { r = nr; c = nc; cols[r] = nc; render(); }
+        function render() {
+            for (var ri = 0; ri < grid.length; ri++) {
+                for (var ci = 0; ci < grid[ri].length; ci++) {
+                    grid[ri][ci].classList.toggle('on', ri === r && ci === c);
+                }
+            }
+            document.body.classList.toggle('in-dock', r === 0);
+            if (r === 0) {
+                $('appName').textContent = DOCK[c].name;
+                $('appCat').textContent = c === learnedDockIndex() ? 'Seu mais aberto ' + PERIODOS[periodo()] + ' · ' + DOCK[c].cat : DOCK[c].cat;
+                deck.style.transform = 'translateY(0)';
+                return;
+            }
+            // Fileiras: leva o item focado pro terço inferior da tela
+            var el = grid[r][c], center = el.offsetHeight / 2;
+            for (var p = el; p && p !== deck; p = p.offsetParent) center += p.offsetTop;
+            var T = Math.round(1080 * 0.62 - center);
+            T = Math.min(0, Math.max(T, 1080 - deck.scrollHeight));
+            deck.style.transform = 'translateY(' + T + 'px)';
+        }
+        function activate() {
+            var el = grid[r][c], box = el.querySelector('.box') || el;
+            if (box.animate) box.animate([{ opacity: 1 }, { opacity: .6 }, { opacity: 1 }], { duration: 220 });
+            actions[r][c]();
+        }
+
+        // --- Proteção de burn-in: modo relógio após 3 min + pixel shift ---
+        var IDLE_MS = (CFG.idleMinutes || 3) * 60 * 1000, idleTimer = null, saverMove = null;
+        var MESES_LONGOS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+        function renderSaver() {
+            var now = new Date();
+            $('svH').textContent = pad2(now.getHours());
+            $('svM').textContent = pad2(now.getMinutes());
+            $('svDate').textContent = DIAS[now.getDay()] + '  ·  ' + now.getDate() + ' de ' + MESES_LONGOS[now.getMonth()];
+            var d = lastWx;
+            if (d && d.current && d.daily) {
+                var w = wmo(d.current.weather_code, d.current.is_day === 1);
+                $('svIcon').innerHTML = ICON[w[1]];
+                $('svWx').textContent = Math.round(d.current.temperature_2m) + '°  ' + w[0] + '  ·  máx ' +
+                    Math.round(d.daily.temperature_2m_max[0]) + '°  mín ' + Math.round(d.daily.temperature_2m_min[0]) + '°';
+            }
+            var hrs = $('hours').querySelectorAll('.hr'), parts = [];
+            for (var i = 0; i < hrs.length && i < 4; i++) {
+                parts.push(hrs[i].querySelector('.hh').textContent + ' ' + hrs[i].querySelector('.tt').textContent);
+            }
+            $('svHours').textContent = CITY.name + (parts.length ? '   ·   ' + parts.join('   ') : '');
+        }
+        function syncSecondsBar() {
+            // A barra enche a cada minuto, alinhada ao relógio de verdade.
+            var bar = $('svBar');
+            bar.style.animation = 'none';
+            void bar.offsetWidth;
+            bar.style.animation = '';
+            bar.style.animationDelay = -(new Date().getSeconds()) + 's';
+        }
+        function saverTarget() {
+            var sv = $('sv');
+            var x = 90 + Math.random() * (1920 - 180 - sv.offsetWidth);
+            var y = 70 + Math.random() * (1080 - 140 - sv.offsetHeight);
+            return 'translate(' + Math.round(x) + 'px,' + Math.round(y) + 'px)';
+        }
+        function moveSaver() {
+            // Flutua devagar (40 s em linha reta) até um ponto novo: nenhum pixel fica parado.
+            renderSaver();
+            $('sv').style.transform = saverTarget();
+        }
+        var saverTick = null, allowLgSaver = null;
+        function enterSaver() {
+            var sv = $('sv');
+            renderSaver();
+            sv.className = 'sv jump';
+            sv.style.transform = saverTarget();
+            void sv.offsetWidth;
+            sv.className = 'sv';
+            document.body.classList.add('saving');
+            closePicker();
+            aerial.pause(); // preto de verdade no OLED e sem gastar rede
+            syncSecondsBar();
+            setTimeout(moveSaver, 50);
+            saverMove = setInterval(moveSaver, 40 * 1000);
+            saverTick = setInterval(function() { renderSaver(); syncSecondsBar(); }, 30 * 1000);
+            // Depois de 2 h parado, deixa a TV seguir o próprio fluxo (protetor e tela apagada) pra descansar o OLED.
+            allowLgSaver = setTimeout(function() { rootExec('touch /tmp/fmtv-allow-screensaver'); }, 2 * 60 * 60 * 1000);
+        }
+        function wake() {
+            var wasSaving = document.body.classList.contains('saving');
+            if (wasSaving) {
+                document.body.classList.remove('saving');
+                clearInterval(saverMove);
+                clearInterval(saverTick);
+                clearTimeout(allowLgSaver);
+                rootExec('rm -f /tmp/fmtv-allow-screensaver');
+                if (wallpaper !== 'preto') { var p = aerial.play(); if (p && p.catch) p.catch(function() {}); }
+                focusLearned();
+            }
+            clearTimeout(idleTimer);
+            idleTimer = setTimeout(enterSaver, IDLE_MS);
+            return wasSaving;
+        }
+        var SHIFT = [[0, 0], [2, 1], [4, 0], [2, -2], [0, -4], [-2, -2], [-4, 0], [-2, 2]], shiftIdx = 0;
+        function pixelShift() {
+            var p = SHIFT[++shiftIdx % SHIFT.length];
+            $('screen').style.transform = 'translate(' + p[0] + 'px,' + p[1] + 'px)';
+        }
+
+        document.addEventListener('keydown', function(e) {
+            var k = e.keyCode;
+            if (wake()) { e.preventDefault(); return; } // tecla no modo relógio só acorda
+            if (document.body.classList.contains('picking')) {
+                if (k === 40) pkIdx = Math.min(WALLPAPERS.length - 1, pkIdx + 1);
+                else if (k === 38) pkIdx = Math.max(0, pkIdx - 1);
+                else if (k === 13) { choosePicker(); e.preventDefault(); return; }
+                else if (k === 461 || k === 8) closePicker();
+                renderPicker();
+                e.preventDefault();
+                return;
+            }
+            var n = grid[r].length;
+            if (k === 39) { if (c < n - 1) go(r, c + 1); }
+            else if (k === 37) { if (c > 0) go(r, c - 1); }
+            else if (k === 40) { if (r < grid.length - 1) go(r + 1, Math.min(cols[r + 1], grid[r + 1].length - 1)); }
+            else if (k === 38) { if (r > 0) go(r - 1, Math.min(cols[r - 1], grid[r - 1].length - 1)); }
+            else if (k === 13) activate();
+            else if (k === 461 || k === 8) { if (r !== 0) go(0, cols[0]); } // Voltar: sobe pro dock
+            else return;
+            e.preventDefault();
+        });
+        document.addEventListener('mousemove', function() { wake(); });
+
+        // Ao voltar pro launcher, atualiza hora/clima e acorda
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) { wake(); tick(); fetchWeather(); if (r === 0) focusLearned(); }
+        });
+
+        $('wxCity').textContent = 'Clima · ' + CITY.name;
+        showQuote();
+        tick();
+        setInterval(tick, 10000);
+        fetchWeather();
+        setInterval(fetchWeather, 20 * 60 * 1000);
+        setInterval(pixelShift, 60 * 1000);
+        playAerial();
+        discoverApps();
+        if (CFG.rootDaemon) installDaemon();
+        wake();
+        render();
+        focusLearned();
+    </script>
+</body>
+</html>
