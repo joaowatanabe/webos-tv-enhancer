@@ -124,6 +124,18 @@ docs/roadmap.md, docs/specs/
 - `app/config.js` e `.env` ficam fora do git. Não versione chaves.
 - A chave do Gemini vai dentro do `.ipk` instalado na TV (é um app web, roda no cliente). Restrinja a chave à Generative Language API no Google Cloud.
 
+## Playlists do autor
+
+Música que eu escuto enquanto construo isto. O autor (@wabe) é DJ e produtor de música eletrônica.
+
+- [PROGRESSIVE H A U S](https://open.spotify.com/playlist/1x59JEpekAHTtSm4ITKRs2): progressive e melodic house (138 faixas)
+- [W A B E H A U S](https://open.spotify.com/playlist/6XQBBoTg7yuku3jscVEzm6): house (210 faixas)
+- [TECHNO WABE](https://open.spotify.com/playlist/69nY6nGEjGjY3Q5ssyC9ZS): techno (241 faixas)
+- [DeeP Haus](https://open.spotify.com/playlist/2tUwfUHYnb2SvemNOh3XvV): deep house (9 faixas)
+- [W A B E Z A D A](https://open.spotify.com/playlist/6ZQv721uMJPVksYXRXZiAA) (421 faixas)
+- [ROAD](https://open.spotify.com/playlist/6Nxr2GZ1yuzfs4oAT2Ejjj) (282 faixas)
+- [Perfil no Spotify](https://open.spotify.com/user/12142982263)
+
 ## Créditos e licença
 
 Licença MIT (arquivo [`LICENSE`](LICENSE)). Base: FreeMyTvWebOS, © 2026 Daniel. Catálogo de aerials levantado do Lumen Launcher; vídeos servidos pela Apple. Logos são marcas dos respectivos donos, usados só como atalhos de app.

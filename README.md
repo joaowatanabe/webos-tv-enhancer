@@ -127,6 +127,18 @@ TV cleanup (factory apps, ads, telemetry; nothing is removed without explicit ap
 - `app/config.js` and `.env` are git-ignored. Never commit keys.
 - API keys end up inside the installed `.ipk`. Use restricted keys.
 
+## Author's playlists
+
+Music I listen to while building this. The author (@wabe) is a DJ and electronic music producer.
+
+- [PROGRESSIVE H A U S](https://open.spotify.com/playlist/1x59JEpekAHTtSm4ITKRs2): progressive & melodic house (138 tracks)
+- [W A B E H A U S](https://open.spotify.com/playlist/6XQBBoTg7yuku3jscVEzm6): house (210)
+- [TECHNO WABE](https://open.spotify.com/playlist/69nY6nGEjGjY3Q5ssyC9ZS): techno (241)
+- [DeeP Haus](https://open.spotify.com/playlist/2tUwfUHYnb2SvemNOh3XvV): deep house (9)
+- [W A B E Z A D A](https://open.spotify.com/playlist/6ZQv721uMJPVksYXRXZiAA) (421)
+- [ROAD](https://open.spotify.com/playlist/6Nxr2GZ1yuzfs4oAT2Ejjj) (282)
+- [Spotify profile](https://open.spotify.com/user/12142982263)
+
 ## Credits and license
 
 MIT, see [`LICENSE`](LICENSE). Based on FreeMyTvWebOS, (c) 2026 Daniel. The aerial catalog was surveyed from Lumen Launcher; videos are served by Apple.
