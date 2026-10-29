@@ -1,6 +1,6 @@
 # 003 — Fundo com pôsteres de séries/filmes ou vídeos do YouTube
 
-**Status:** spec · não iniciado · risco médio
+**Status:** descartado (2026-10-28) · substituído por "mais fontes de vídeo pro fundo" no roadmap
 
 ## Objetivo
 Novas opções no seletor de plano de fundo: arte de séries e filmes em alta (estático, com Ken Burns lento) ou vídeos do YouTube.

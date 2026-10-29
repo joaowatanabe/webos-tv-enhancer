@@ -29,15 +29,12 @@ window.LAUNCHER_DEFAULTS = {
         { icon: 'globe', cap: 'Navegador', app: 'com.webos.app.browser' }
     ],
 
-    // Minutos sem tecla até entrar o modo relógio.
-    idleMinutes: 3,
-
     // Frase do dia gerada pelo Gemini (opcional). Chave grátis em https://aistudio.google.com/apikey
     // Atenção: a chave vai dentro do .ipk instalado na TV. Restrinja-a à Generative Language API.
     geminiKey: '',
     geminiModel: 'gemini-flash-lite-latest',
 
     // Recursos que exigem TV com root + Homebrew Channel (veja docs/specs/001-home-daemon.md):
-    // abrir sempre no launcher, botão "Home da LG" e bloquear o protetor de tela da LG.
+    // abrir sempre no launcher e botão "Home da LG".
     rootDaemon: false
 };

@@ -9,7 +9,7 @@ Um app web do Developer Mode não pode substituir a home da LG nem ler energia/p
 1. Ao ligar a TV (saída de standby), abrir o launcher.
 2. Quando a home da LG vier pra frente (botão Home, sair de app), abrir o launcher.
 3. Existir uma saída pra home original: temporária e permanente.
-4. Com o launcher na frente, barrar o protetor de tela da LG; depois de 2 h parado, liberar (descanso do OLED).
+4. ~~Barrar o protetor de tela da LG com o launcher na frente.~~ Removido na v1.6.0: o launcher não tem mais modo relógio, o protetor da LG assume.
 5. Nunca travar a TV: se o launcher quebrar, a TV continua usável.
 
 ## Desenho

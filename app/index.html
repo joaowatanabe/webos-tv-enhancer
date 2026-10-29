@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=1920, height=1080">
     <title>Free My TV</title>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap">
     <script src="webOSTV.js"></script>
     <script src="config.example.js"></script>
     <script src="config.js"></script>
@@ -45,7 +45,7 @@
         .bg::after {
             content: ""; position: absolute; left: 0; top: 0; right: 0; bottom: 0;
             background:
-                linear-gradient(180deg, rgba(0,0,0,.40) 0%, transparent 24%, transparent 46%, rgba(0,0,0,.82) 100%),
+                linear-gradient(180deg, rgba(0,0,0,.72) 0%, rgba(0,0,0,.45) 16%, transparent 32%, transparent 46%, rgba(0,0,0,.82) 100%),
                 radial-gradient(120% 90% at 50% 38%, transparent 52%, rgba(0,0,0,.5) 100%);
             transition: opacity 1.2s ease;
         }
@@ -58,12 +58,15 @@
 
 
         .home { height: 1080px; display: flex; flex-direction: column; padding: 61px 69px 58px; }
-        .top { display: flex; align-items: flex-start; justify-content: space-between; }
-        .greet { font-size: 34px; font-weight: 600; letter-spacing: -0.015em; }
-        .greet small { display: block; font-size: 21px; font-weight: 400; color: var(--ink-dim); margin-top: 4px; }
+        /* Sombra no texto do topo: legível mesmo com aerial claro (céu, neve) */
+        .top { display: flex; align-items: flex-start; justify-content: space-between;
+            text-shadow: 0 2px 4px rgba(0,0,0,.6), 0 0 22px rgba(0,0,0,.45); }
+        .greet { font-size: 38px; font-weight: 600; letter-spacing: -0.015em; }
+        .greet small { display: block; max-width: 1100px; font-size: 24px; font-weight: 500; line-height: 1.3;
+            color: rgba(245,247,252,.9); margin-top: 6px; }
         .clock { text-align: right; line-height: 1.15; font-variant-numeric: tabular-nums; }
-        .clock .t { display: block; font-size: 50px; font-weight: 700; letter-spacing: -0.02em; }
-        .clock .d { font-size: 20px; color: var(--ink-dim); }
+        .clock .t { display: block; font-size: 54px; font-weight: 700; letter-spacing: -0.02em; }
+        .clock .d { font-size: 22px; font-weight: 500; color: rgba(245,247,252,.9); }
 
         .lower { margin-top: auto; display: flex; flex-direction: column; }
         .lower > * + * { margin-top: 24px; }
@@ -150,33 +153,6 @@
         }
         .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
-        /* --- Modo relógio (OLED): preto, pouca luz, bloco que flutua devagar pela tela --- */
-        .saver { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; z-index: 8; background: #000;
-            opacity: 0; visibility: hidden; transition: opacity 1.2s ease, visibility 0s linear 1.2s; }
-        body.saving .saver { opacity: 1; visibility: visible; transition: opacity 1.2s ease; }
-        .sv { position: absolute; left: 0; top: 0; width: 760px; color: #8d877c; transition: transform 40s linear; }
-        .sv.jump { transition: none; }
-        .sv-d { font-size: 21px; font-weight: 400; letter-spacing: .32em; text-transform: uppercase; }
-        .sv-t { font-family: "Instrument Serif", Georgia, serif; font-size: 300px; line-height: .86; letter-spacing: -0.02em;
-            color: #d4cdc1; font-variant-numeric: tabular-nums; margin: 20px 0 6px -8px; }
-        .sv-colon { animation: sv-blink 2s ease-in-out infinite; }
-        @keyframes sv-blink { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
-        .sv-bar { position: relative; height: 2px; background: #1a1916; margin-bottom: 34px; overflow: hidden; }
-        .sv-bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; background: #b0603f;
-            transform-origin: left; animation: sv-sec 60s linear infinite; }
-        @keyframes sv-sec { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-        .sv-w { display: flex; align-items: center; font-size: 30px; font-weight: 300; color: #a8a297; }
-        .sv-w .ic { width: 40px; height: 40px; margin-right: 16px; opacity: .8; }
-        .sv-h { font-size: 22px; font-weight: 300; margin-top: 12px; font-variant-numeric: tabular-nums; }
-        .sv-q { font-family: "Instrument Serif", Georgia, serif; font-style: italic; font-size: 36px; line-height: 1.25;
-            color: #a8a297; margin-top: 34px; }
-        .sv-q:empty { display: none; }
-        /* À noite tudo vira vermelho escuro de baixa luminância */
-        body.night .sv, body.night .sv-t, body.night .sv-w, body.night .sv-q { color: #6a1c1c; }
-        body.night .sv-bar { background: #140606; }
-        body.night .sv-bar i { background: #4a1414; }
-        body.night .sv-w .ic { opacity: .35; }
-
         /* --- Seletor de plano de fundo --- */
         .picker { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; z-index: 7; background: rgba(0,0,0,.55);
             display: none; align-items: center; justify-content: center; }
@@ -225,14 +201,7 @@
 
     <div class="picker" id="picker"><div class="pk"><h2>Plano de fundo</h2><div id="pkList"></div></div></div>
 
-    <div class="saver" id="saver"><div class="sv" id="sv">
-        <div class="sv-d" id="svDate"></div>
-        <div class="sv-t"><span id="svH">--</span><span class="sv-colon">:</span><span id="svM">--</span></div>
-        <div class="sv-bar"><i id="svBar"></i></div>
-        <div class="sv-w"><span class="ic" id="svIcon"></span><span id="svWx"></span></div>
-        <div class="sv-h" id="svHours"></div>
-        <div class="sv-q" id="svQuote"></div>
-    </div></div>
+
 
     <script>
         // Config: app/config.example.js (padrões) + app/config.js (pessoal, fora do git).
@@ -495,7 +464,6 @@
         function showQuote() {
             var t = quote && quote.text || '';
             if (t) $('quote').textContent = t;
-            $('svQuote').textContent = t;
         }
         function fetchQuote() {
             var now = new Date(), slot = now.toDateString() + '#' + Math.floor(now.getHours() / 3);
@@ -546,7 +514,7 @@
                 '  cp $S/fmtvd.sh $D/fmtvd.sh; [ -f /tmp/fmtvd.pid ] && kill -TERM -$(cat /tmp/fmtvd.pid) 2>/dev/null; rm -f /tmp/fmtvd.pid; fi; ' +
                 'cp $S/init.d-fmtv /var/lib/webosbrew/init.d/fmtv; chmod 755 /var/lib/webosbrew/init.d/fmtv $D/fmtvd.sh; ' +
                 'if ! { [ -f /tmp/fmtvd.pid ] && kill -0 $(cat /tmp/fmtvd.pid) 2>/dev/null; }; then setsid sh $D/fmtvd.sh > /dev/null 2>&1 < /dev/null & fi; ' +
-                'rm -f /tmp/fmtv-allow-screensaver; [ -f $D/autostart-off ] && echo off || echo on',
+                '[ -f $D/autostart-off ] && echo off || echo on',
                 function(out) {
                     if (out === null) return;
                     autostartOn = out.indexOf('off') === -1;
@@ -722,79 +690,7 @@
             actions[r][c]();
         }
 
-        // --- Proteção de burn-in: modo relógio após 3 min + pixel shift ---
-        var IDLE_MS = (CFG.idleMinutes || 3) * 60 * 1000, idleTimer = null, saverMove = null;
-        var MESES_LONGOS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
-        function renderSaver() {
-            var now = new Date();
-            $('svH').textContent = pad2(now.getHours());
-            $('svM').textContent = pad2(now.getMinutes());
-            $('svDate').textContent = DIAS[now.getDay()] + '  ·  ' + now.getDate() + ' de ' + MESES_LONGOS[now.getMonth()];
-            var d = lastWx;
-            if (d && d.current && d.daily) {
-                var w = wmo(d.current.weather_code, d.current.is_day === 1);
-                $('svIcon').innerHTML = ICON[w[1]];
-                $('svWx').textContent = Math.round(d.current.temperature_2m) + '°  ' + w[0] + '  ·  máx ' +
-                    Math.round(d.daily.temperature_2m_max[0]) + '°  mín ' + Math.round(d.daily.temperature_2m_min[0]) + '°';
-            }
-            var hrs = $('hours').querySelectorAll('.hr'), parts = [];
-            for (var i = 0; i < hrs.length && i < 4; i++) {
-                parts.push(hrs[i].querySelector('.hh').textContent + ' ' + hrs[i].querySelector('.tt').textContent);
-            }
-            $('svHours').textContent = CITY.name + (parts.length ? '   ·   ' + parts.join('   ') : '');
-        }
-        function syncSecondsBar() {
-            // A barra enche a cada minuto, alinhada ao relógio de verdade.
-            var bar = $('svBar');
-            bar.style.animation = 'none';
-            void bar.offsetWidth;
-            bar.style.animation = '';
-            bar.style.animationDelay = -(new Date().getSeconds()) + 's';
-        }
-        function saverTarget() {
-            var sv = $('sv');
-            var x = 90 + Math.random() * (1920 - 180 - sv.offsetWidth);
-            var y = 70 + Math.random() * (1080 - 140 - sv.offsetHeight);
-            return 'translate(' + Math.round(x) + 'px,' + Math.round(y) + 'px)';
-        }
-        function moveSaver() {
-            // Flutua devagar (40 s em linha reta) até um ponto novo: nenhum pixel fica parado.
-            renderSaver();
-            $('sv').style.transform = saverTarget();
-        }
-        var saverTick = null, allowLgSaver = null;
-        function enterSaver() {
-            var sv = $('sv');
-            renderSaver();
-            sv.className = 'sv jump';
-            sv.style.transform = saverTarget();
-            void sv.offsetWidth;
-            sv.className = 'sv';
-            document.body.classList.add('saving');
-            closePicker();
-            aerial.pause(); // preto de verdade no OLED e sem gastar rede
-            syncSecondsBar();
-            setTimeout(moveSaver, 50);
-            saverMove = setInterval(moveSaver, 40 * 1000);
-            saverTick = setInterval(function() { renderSaver(); syncSecondsBar(); }, 30 * 1000);
-            // Depois de 2 h parado, deixa a TV seguir o próprio fluxo (protetor e tela apagada) pra descansar o OLED.
-            allowLgSaver = setTimeout(function() { rootExec('touch /tmp/fmtv-allow-screensaver'); }, 2 * 60 * 60 * 1000);
-        }
-        function wake() {
-            var wasSaving = document.body.classList.contains('saving');
-            if (wasSaving) {
-                document.body.classList.remove('saving');
-                clearInterval(saverMove);
-                clearInterval(saverTick);
-                clearTimeout(allowLgSaver);
-                rootExec('rm -f /tmp/fmtv-allow-screensaver');
-                if (wallpaper !== 'preto') { var p = aerial.play(); if (p && p.catch) p.catch(function() {}); }
-                focusLearned();
-            }
-            clearTimeout(idleTimer);
-            idleTimer = setTimeout(enterSaver, IDLE_MS);
-            return wasSaving;
-        }
+        // --- Proteção de burn-in: pixel shift (o protetor de tela fica por conta da LG) ---
         var SHIFT = [[0, 0], [2, 1], [4, 0], [2, -2], [0, -4], [-2, -2], [-4, 0], [-2, 2]], shiftIdx = 0;
         function pixelShift() {
             var p = SHIFT[++shiftIdx % SHIFT.length];
@@ -803,7 +699,6 @@
 
         document.addEventListener('keydown', function(e) {
             var k = e.keyCode;
-            if (wake()) { e.preventDefault(); return; } // tecla no modo relógio só acorda
             if (document.body.classList.contains('picking')) {
                 if (k === 40) pkIdx = Math.min(WALLPAPERS.length - 1, pkIdx + 1);
                 else if (k === 38) pkIdx = Math.max(0, pkIdx - 1);
@@ -823,11 +718,10 @@
             else return;
             e.preventDefault();
         });
-        document.addEventListener('mousemove', function() { wake(); });
 
         // Ao voltar pro launcher, atualiza hora/clima e acorda
         document.addEventListener('visibilitychange', function() {
-            if (!document.hidden) { wake(); tick(); fetchWeather(); if (r === 0) focusLearned(); }
+            if (!document.hidden) { tick(); fetchWeather(); if (r === 0) focusLearned(); }
         });
 
         $('wxCity').textContent = 'Clima · ' + CITY.name;
@@ -840,7 +734,6 @@
         playAerial();
         discoverApps();
         if (CFG.rootDaemon) installDaemon();
-        wake();
         render();
         focusLearned();
     </script>

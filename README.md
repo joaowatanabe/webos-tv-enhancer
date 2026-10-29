@@ -1,7 +1,7 @@
 # lg-c1-launcher
 
 Launcher estilo Apple TV para TVs LG com **webOS 6** (feito e testado numa OLED C1, webOS 6.5.3).
-Fundo com vídeos aerial da Apple, dock só com os seus streamings, clima, modo relógio pensado pra OLED e, em TVs com root, a opção de virar a tela inicial da TV.
+Fundo com vídeos aerial da Apple, dock só com os seus streamings, clima e, em TVs com root, a opção de virar a tela inicial da TV.
 
 Começou como fork do [FreeMyTvWebOS](https://github.com/danielthejoker18/FreeMyTvWebOS) (MIT) e foi reescrito do zero.
 
@@ -12,11 +12,9 @@ Começou como fork do [FreeMyTvWebOS](https://github.com/danielthejoker18/FreeMy
 | Fundo com 42 aerials da Apple por streaming (0 MB no disco), seletor por categoria ou preto OLED | não |
 | Dock só de streaming, que aprende o app mais usado em cada período do dia | não |
 | Clima via Open-Meteo (sem chave), próximas horas e condições | não |
-| Modo relógio OLED: tela preta, relógio serifado que flutua devagar, clima e frase do dia; vermelho escuro à noite | não |
 | Frase do dia gerada pelo Gemini (opcional, chave grátis) | não |
 | Fileiras de entradas (HDMI, AirPlay), ajustes rápidos e apps instalados | não |
 | **Abrir sempre no launcher** (ao ligar e no botão Home), botão "Home da LG" pra voltar à home original | **sim** |
-| Barrar o protetor de tela da LG enquanto o modo relógio está ativo (libera depois de 2 h) | **sim** |
 
 ## Instalação
 
@@ -65,13 +63,12 @@ Ao atualizar, suba a `version` em `app/appinfo.json` antes.
 Com a TV rooteada e o [Homebrew Channel](https://github.com/webosbrew/webos-homebrew-channel) com o serviço elevado, ligue `rootDaemon: true`. Na primeira abertura, o launcher instala um serviço pequeno (`app/system/fmtvd.sh`) em `/var/lib/webosbrew/`, que roda no boot e:
 
 - abre o launcher quando a TV liga e quando a home da LG aparece (botão Home, sair de um app);
-- barra o protetor de tela da LG enquanto o launcher está na frente.
 
 Pra voltar à home original: **Ajustes rápidos → Home da LG** (vale até você abrir outro app) ou **Abrir sempre aqui: não** (desliga de vez). Tem uma trava anti-loop: no máximo 3 aberturas por minuto. Detalhes e desinstalação em [`docs/specs/001-home-daemon.md`](docs/specs/001-home-daemon.md).
 
 ## Controle
 
-Setas navegam · **OK** abre · **Voltar** sobe pro dock ou fecha o seletor · qualquer tecla sai do modo relógio.
+Setas navegam · **OK** abre · **Voltar** sobe pro dock ou fecha o seletor.
 
 ## Limites do webOS 6 (Chromium 79)
 

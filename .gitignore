@@ -9,3 +9,7 @@ dist/
 app/config.js
 
 .DS_Store
+
+# graphify (grafo local, não versionar)
+graphify-out/
+.graphify_*

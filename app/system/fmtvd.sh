@@ -2,18 +2,16 @@
 # fmtvd — mantém o launcher como "home" da TV (precisa de root via Homebrew Channel).
 #   1. Botão Home / home da LG em primeiro plano  -> abre o launcher
 #   2. TV ligou (saiu do standby)                  -> abre o launcher
-#   3. Protetor de tela da LG com o launcher aberto -> barrado (o launcher tem o próprio)
+#   O protetor de tela fica por conta da LG (o daemon não interfere).
 # Arquivos de controle (o launcher cria/remove via hbchannel exec):
 #   $DIR/autostart-off        existe = itens 1 e 2 desligados
 #   /tmp/fmtv-home-bypass     existe = deixa a home da LG abrir até você trocar de app
-#   /tmp/fmtv-allow-screensaver existe = deixa o protetor da LG entrar (descanso do OLED)
 
 APP=org.webos.freemytv
 LG_HOME=com.webos.app.home
 DIR=/var/lib/webosbrew/fmtv
 OFF=$DIR/autostart-off
 BYPASS=/tmp/fmtv-home-bypass
-ALLOW_SS=/tmp/fmtv-allow-screensaver
 FG=/tmp/fmtv-foreground
 LAUNCHES=/tmp/fmtv-launches
 PIDFILE=/tmp/fmtvd.pid
@@ -65,25 +63,12 @@ watch_power() {
     done
 }
 
-watch_screensaver() {
-    luna-send -i luna://com.webos.service.tvpower/power/registerScreenSaverRequest '{"subscribe":true,"clientName":"fmtvd"}' 2>/dev/null |
-    while read -r line; do
-        ts=$(echo "$line" | sed -n 's/.*"timestamp": *\([0-9]*\).*/\1/p')
-        [ -z "$ts" ] && continue
-        if [ "$(cat "$FG" 2>/dev/null)" = "$APP" ] && [ ! -f "$ALLOW_SS" ]; then ack=false; else ack=true; fi
-        luna-send -n 1 luna://com.webos.service.tvpower/power/responseScreenSaverRequest \
-            "{\"clientName\":\"fmtvd\",\"ack\":$ack,\"timestamp\":$ts}" >/dev/null 2>&1
-        log "protetor da LG pedido: ack=$ack ($line)"
-    done
-}
-
 # Cada assinatura num laço próprio: se o luna-send cair, reconecta.
 forever() { while true; do "$1"; sleep 5; done; }
 
 log "fmtvd iniciado (pid $$)"
 forever watch_foreground &
 forever watch_power &
-forever watch_screensaver &
 
 if [ "$1" = "boot" ]; then
     sleep 20
