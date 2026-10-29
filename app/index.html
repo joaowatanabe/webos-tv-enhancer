@@ -15,8 +15,9 @@
            webOS 6.5 = Chromium 79: nada de cqw, aspect-ratio ou gap em flexbox. */
         :root {
             --ink: #f5f7fc;
-            --ink-dim: #b2b8c8;
-            --ink-faint: #767d92;
+            --ink-dim: #cdd2de;
+            --ink-faint: #a4aabb;
+            --wx-tint: 74, 163, 255; /* cor do clima (RGB), trocada conforme a temperatura */
             --panel: rgba(255, 255, 255, 0.06);
             --panel-2: rgba(10, 12, 18, 0.30);
             --panel-line: rgba(255, 255, 255, 0.10);
@@ -51,10 +52,15 @@
         }
         .bg .dim { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: #000; opacity: 0; transition: opacity 1.2s ease; }
         body.night .bg .dim { opacity: .3; }
+        /* Ao descer do dock o fundo escurece (como no tvOS): o vídeo vira ambiente e o texto ganha contraste */
+        .bg .scrim { position: absolute; left: 0; top: 0; right: 0; bottom: 0; opacity: 0; transition: opacity .6s ease;
+            background: linear-gradient(180deg, rgba(0,0,0,.45) 0%, rgba(0,0,0,.62) 45%, rgba(0,0,0,.82) 100%); }
+        body:not(.in-dock) .bg .scrim { opacity: 1; }
 
         /* --- Tela / deck rolável --- */
         .screen { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; z-index: 2; overflow: hidden; transition: opacity .9s ease; }
-        .deck { position: relative; transition: transform .34s var(--ease); }
+        /* Só transform/opacity animam liso no Chromium 79 da TV; o deck fica numa camada da GPU. */
+        .deck { position: relative; transition: transform .42s cubic-bezier(.22, .8, .24, 1); will-change: transform; }
 
 
         .home { height: 1080px; display: flex; flex-direction: column; padding: 61px 69px 58px; }
@@ -68,9 +74,22 @@
         .clock .t { display: block; font-size: 54px; font-weight: 700; letter-spacing: -0.02em; }
         .clock .d { font-size: 22px; font-weight: 500; color: rgba(245,247,252,.9); }
 
+        /* --- Assistente de voz: balão ✦ no lugar da frase do dia --- */
+        .ai { display: none; align-items: flex-start; max-width: 1150px; margin-top: 14px; padding: 16px 28px 16px 18px;
+            border-radius: 26px; background: rgba(14,16,26,.82); border: 1px solid rgba(155,140,255,.5);
+            box-shadow: 0 0 36px rgba(120,100,255,.28); font-size: 27px; font-weight: 500; line-height: 1.35; text-shadow: none; }
+        body.ai-on .ai { display: flex; animation: ai-in .35s var(--ease); }
+        body.ai-on #quote { display: none; }
+        .ai-ic { flex: 0 0 36px; height: 36px; margin: 1px 14px 0 0; }
+        .ai-ic svg { width: 100%; height: 100%; display: block; }
+        body.ai-busy .ai-ic { animation: ai-pulse 1.1s ease-in-out infinite; }
+        body.ai-busy .ai-t { color: var(--ink-dim); }
+        @keyframes ai-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(.8); opacity: .5; } }
+        @keyframes ai-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+
         .lower { margin-top: auto; display: flex; flex-direction: column; }
         .lower > * + * { margin-top: 24px; }
-        .hero .cat { font-size: 22px; color: var(--ink-dim); margin-bottom: 6px; letter-spacing: .01em; }
+        .hero .cat { font-size: 22px; font-weight: 500; color: var(--ink-dim); margin-bottom: 6px; letter-spacing: .01em; text-shadow: 0 1px 4px rgba(0,0,0,.7); }
         .hero .name { font-size: 90px; font-weight: 700; letter-spacing: -0.03em; line-height: .96; }
 
         /* --- Dock (só streaming) --- */
@@ -81,8 +100,11 @@
         .tile {
             position: relative; flex: 1 1 0; height: 142px; border-radius: 23px;
             display: flex; align-items: center; justify-content: center;
-            transition: transform .2s var(--ease), opacity .2s ease;
+            transition: transform .28s var(--ease);
+            will-change: transform;
         }
+        .tile::after { content: ""; position: absolute; left: 0; top: 0; right: 0; bottom: 0; border-radius: inherit;
+            background: #000; opacity: 0; transition: opacity .28s ease; pointer-events: none; }
         .tile + .tile { margin-left: 23px; }
         .tile img { display: block; max-width: 56%; max-height: 46%; }
         .tile img.wide { max-width: 70%; max-height: 40%; }
@@ -94,17 +116,34 @@
         .tile.on { transform: translateY(-11px) scale(1.07); z-index: 3;
             box-shadow: 0 0 0 5px var(--focus), 0 12px 28px rgba(0,0,0,.5); }
         .tile.on .label { opacity: 1; }
-        body.in-dock .tile:not(.on) { opacity: .5; }
+        body.in-dock .tile:not(.on)::after { opacity: .45; }
 
         /* --- Widgets de clima --- */
         .lower > .shelf { margin-top: 40px; }
         .shelf { display: flex; }
         .card {
-            flex: 1 1 0; min-width: 0; padding: 16px 29px 20px;
-            background: var(--panel-2); border: 1px solid var(--panel-line-soft); border-radius: 27px;
+            flex: 1 1 0; min-width: 0; padding: 16px 29px 20px; position: relative;
+            background: rgba(10, 12, 18, .5); border: 1px solid var(--panel-line-soft); border-radius: 27px;
+            text-shadow: 0 1px 3px rgba(0,0,0,.6);
+            transition: transform .5s var(--ease); will-change: transform;
         }
+        .card > * { position: relative; }
+        /* Camada de cor do clima: só a opacidade anima (barato na GPU da TV) */
+        .card::before { content: ""; position: absolute; left: -1px; top: -1px; right: -1px; bottom: -1px; border-radius: inherit;
+            background: linear-gradient(160deg, rgba(var(--wx-tint), .32) 0%, rgba(12, 14, 22, .85) 60%);
+            border: 1px solid rgba(var(--wx-tint), .55); box-shadow: 0 0 34px rgba(var(--wx-tint), .22);
+            opacity: 0; transition: opacity .5s ease; }
+        /* Ao descer: cards sobem um pouco e ganham a cor do clima, um de cada vez */
+        body:not(.in-dock) .card { transform: translateY(-6px); }
+        body:not(.in-dock) .card::before { opacity: 1; }
+        body:not(.in-dock) .card + .card::before { transition-delay: .07s; }
+        body:not(.in-dock) .card + .card + .card::before { transition-delay: .14s; }
+        body:not(.in-dock) .card + .card { transition-delay: .07s; }
+        body:not(.in-dock) .card + .card + .card { transition-delay: .14s; }
+        body:not(.in-dock) .card .lbl { color: rgb(var(--wx-tint)); }
         .card + .card { margin-left: 27px; }
-        .lbl { font-size: 18px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 12px; }
+        .lbl { font-size: 19px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 12px;
+            text-shadow: 0 1px 3px rgba(0,0,0,.7); transition: color .5s ease; }
         .wx-now { display: flex; align-items: center; }
         .wx-now .ic { width: 61px; height: 61px; margin-right: 20px; }
         .wx-now .temp { font-size: 65px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; margin-right: 22px; }
@@ -124,20 +163,20 @@
         /* --- Fileiras de baixo --- */
         .rows { padding: 11px 69px 54px; }
         .rail + .rail { margin-top: 32px; }
-        .rail .lbl { margin-bottom: 14px; }
+        .rail .lbl { margin-bottom: 14px; color: rgba(245,247,252,.85); }
         .strip { display: flex; }
         .stile { flex: 0 0 auto; width: 202px; }
         .stile + .stile { margin-left: 21px; }
         .stile .box {
             height: 126px; border-radius: 21px; position: relative; overflow: hidden;
-            background: var(--panel-2); border: 1px solid var(--panel-line-soft); color: var(--ink-dim);
+            background: rgba(10, 12, 18, .55); border: 1px solid var(--panel-line); color: var(--ink-dim);
             display: flex; align-items: center; justify-content: center;
             transition: transform .2s var(--ease);
         }
         .stile .box svg { width: 48px; height: 48px; }
         .stile .box img { max-width: 64%; max-height: 64%; }
         .stile .box img.lp { max-width: 100%; max-height: 100%; }
-        .stile .cap { font-size: 18px; color: var(--ink-faint); text-align: center; margin-top: 10px;
+        .stile .cap { font-size: 19px; font-weight: 500; color: var(--ink-dim); text-align: center; margin-top: 10px; text-shadow: 0 1px 3px rgba(0,0,0,.7);
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color .2s ease; }
         .stile.on .box { background: rgba(255,255,255,.10); border-color: var(--focus); color: var(--ink);
             transform: translateY(-7px) scale(1.05);
@@ -167,12 +206,13 @@
     </style>
 </head>
 <body class="in-dock">
-    <div class="bg"><video id="aerial" muted playsinline preload="auto"></video><div class="dim"></div></div>
+    <div class="bg"><video id="aerial" muted playsinline preload="auto"></video><div class="dim"></div><div class="scrim"></div></div>
 
     <div class="screen" id="screen"><div class="deck" id="deck">
         <section class="home">
             <div class="top">
-                <div class="greet"><span id="greet">Olá</span><small id="quote">Escolha por onde começar.</small></div>
+                <div class="greet"><span id="greet">Olá</span><small id="quote">Escolha por onde começar.</small>
+                    <div class="ai" id="ai"><span class="ai-ic"><svg viewBox="0 0 24 24"><defs><linearGradient id="aig" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a493ff"/><stop offset="1" stop-color="#5ee0ff"/></linearGradient></defs><path fill="url(#aig)" d="M11 2l2.3 6.4 6.4 2.3-6.4 2.3L11 19.4 8.7 13 2.3 10.7 8.7 8.4z"/><path fill="url(#aig)" d="M19 14.5l1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1z"/></svg></span><span class="ai-t" id="aiText"></span></div></div>
                 <div class="clock"><span class="t" id="clock">--:--</span><span class="d" id="date"></span></div>
             </div>
             <div class="lower">
@@ -238,6 +278,7 @@
 
         // Fileiras de baixo. "Apps instalados" é completada pelo listLaunchPoints.
         var RAILS = [
+            { label: 'Apps abertos · botão vermelho fecha', items: [] },
             { label: 'Entradas & dispositivos', items: CFG.inputs },
             { label: 'Ajustes rápidos', items: [
                 { icon: 'wall', cap: 'Plano de fundo', action: 'picker' },
@@ -349,7 +390,9 @@
             fetchQuote();
             var cur = d.current, day = d.daily;
             if (cur) {
-                var w = wmo(cur.weather_code, cur.is_day === 1);
+                var w = wmo(cur.weather_code, cur.is_day === 1), tc = cur.temperature_2m;
+                // Frio azul, ameno verde-água, quente laranja, muito quente vermelho.
+                document.documentElement.style.setProperty('--wx-tint', tc < 12 ? '96, 150, 255' : tc < 20 ? '64, 200, 190' : tc < 28 ? '255, 160, 70' : '255, 95, 80');
                 $('wxTemp').textContent = Math.round(cur.temperature_2m) + '°';
                 $('wxDesc').textContent = w[0];
                 $('wxIcon').innerHTML = ICON[w[1]];
@@ -614,6 +657,8 @@
                 else if (it.action === 'picker') openPicker();
                 else if (it.action === 'lgHome') openLgHome();
                 else if (it.action === 'autostart') toggleAutostart();
+                else if (it.action === 'closeAll') closeApps(it.ids);
+                else if (it.action === 'none') return;
                 else launch(it.app, it.params, it.cap);
             });
         }
@@ -630,7 +675,8 @@
         });
 
         // --- Apps instalados (listLaunchPoints), sem repetir o que já está no dock/fileiras ---
-        var INSTALLED_ROW = 3, MAX_INSTALLED = 7;
+        var OPEN_ROW = 1, INSTALLED_ROW = 4, MAX_INSTALLED = 7;
+        var LP = {}; // appId -> { title, icon } de todos os launch points
         var SKIP = /^(com\.webos\.app\.(hdmi\d|browser|discovery|livetv|home|inputpicker|externalinput.*|tvuserguide|notificationcenter|connectionwizard|miracast|photovideo|music)|com\.palm\.app\.settings|airplay|org\.webos\.freemytv)$/;
         var DOCK_LIKE = /youtube|spotify|netflix|wbd|hbo|amazon|appletv|globoplay/i;
         function iconUrl(lp) {
@@ -643,9 +689,11 @@
             var added = 0;
             lps.forEach(function(lp) {
                 var id = lp.id || lp.appId;
+                if (id) LP[id] = { title: lp.title || id, icon: iconUrl(lp) };
                 if (!id || added >= MAX_INSTALLED || SKIP.test(id) || DOCK_LIKE.test(id)) return;
                 var url = iconUrl(lp);
                 addRailItem(INSTALLED_ROW, { icon: url ? 'img:' + url : 'app', cap: lp.title || id, app: id });
+                VOICE_APPS.push({ name: lp.title || id, id: id });
                 added++;
             });
         }
@@ -660,8 +708,280 @@
             } catch (e) {}
         }
 
+        // --- Assistente de voz (microfone do controle -> fmtvd -> Gemini) ---
+        // O fmtvd manda {evento:'ouvindo'} ao apertar o microfone e {evento:'texto'} com o que a LG transcreveu.
+        var VOICE_APPS = DOCK.map(function(a) { return { name: a.name, id: a.id }; })
+            .concat(CFG.inputs.map(function(i) { return { name: i.cap, id: i.app }; }));
+        var aiTimer = null, audioCtx = null;
+        var MY_PLAYLISTS = []; // playlists do perfil do Spotify (precisa do spotifyRefreshToken: scripts/spotify-login.mjs)
+        var LIKED = 'Músicas curtidas';
+        function spotifyTokenSh() {
+            // Com refresh token usa a conta do usuário; sem ele, client credentials (só busca pública).
+            var grant = CFG.spotifyRefreshToken ? '-d grant_type=refresh_token -d refresh_token=' + CFG.spotifyRefreshToken : '-d grant_type=client_credentials';
+            return 'TK=$(curl -s -m 8 -u "' + CFG.spotifyClientId + ':' + CFG.spotifyClientSecret + '" ' + grant +
+                ' https://accounts.spotify.com/api/token | sed -n \'s/.*"access_token" *: *"\\([^"]*\\)".*/\\1/p\'); ';
+        }
+        function loadMyPlaylists() {
+            if (!CFG.spotifyRefreshToken || !CFG.spotifyClientId) return;
+            rootExec(spotifyTokenSh() + 'curl -s -m 10 -H "Authorization: Bearer $TK" "https://api.spotify.com/v1/me/playlists?limit=50"', function(out) {
+                try {
+                    var seen = {};
+                    MY_PLAYLISTS = (JSON.parse(out).items || []).filter(function(p) {
+                        if (!p || !p.name || seen[p.name]) return false;
+                        return (seen[p.name] = true);
+                    }).map(function(p) { return { name: p.name, uri: p.uri }; });
+                } catch (e) {}
+            });
+        }
+        function aiShow(text, busy, ms) {
+            $('aiText').textContent = text;
+            document.body.classList.add('ai-on');
+            document.body.classList.toggle('ai-busy', !!busy);
+            clearTimeout(aiTimer);
+            aiTimer = setTimeout(aiHide, ms || 12000);
+        }
+        function aiHide() { document.body.classList.remove('ai-on', 'ai-busy'); }
+        function aiAnswer(text) {
+            chime();
+            // Tempo na tela proporcional ao tamanho da resposta (6 a 20 s).
+            aiShow(text, false, Math.max(6000, Math.min(20000, text.length * 75)));
+        }
+        function chime(low) {
+            // Dois toques curtos (Web Audio): resposta pronta, ou grave quando deu erro.
+            try {
+                audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+                (low ? [523, 392] : [784, 1175]).forEach(function(f, i) {
+                    var o = audioCtx.createOscillator(), g = audioCtx.createGain(), t = audioCtx.currentTime + i * 0.13;
+                    o.type = 'sine';
+                    o.frequency.value = f;
+                    g.gain.setValueAtTime(0, t);
+                    g.gain.linearRampToValueAtTime(0.2, t + 0.02);
+                    g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+                    o.connect(g);
+                    g.connect(audioCtx.destination);
+                    o.start(t);
+                    o.stop(t + 0.45);
+                });
+            } catch (e) {}
+        }
+        function norm(s) { return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, ''); }
+        function findApp(name) {
+            var q = norm(name);
+            if (q.length < 3) return null;
+            for (var i = 0; i < VOICE_APPS.length; i++) {
+                var n = norm(VOICE_APPS[i].name);
+                if (n === q || n.indexOf(q) === 0 || q.indexOf(n) === 0) return VOICE_APPS[i];
+            }
+            return null;
+        }
+        function onVoice(v) {
+            if (v.evento === 'ouvindo') aiShow('Ouvindo…', true, 15000);
+            // Eventos do voiceagent (assistente em qualquer app): ele já executou a ação, aqui só mostra.
+            else if (v.evento === 'pensando') aiShow('Entendendo…', true, 15000);
+            else if (v.evento === 'resposta' && v.texto) aiAnswer(v.texto);
+            else if (v.evento === 'erro' && v.texto) { chime(true); aiShow(v.texto, false, 5000); }
+            else if (v.evento === 'texto' && v.texto) handleUtterance(v.texto, v.alternativas, v.audio);
+        }
+        function handleUtterance(text, alts, audioPath) {
+            // Atalho local pra "abrir X": não gasta chamada da IA.
+            var m = /^(abr[aeir]+|bota|coloca|p[oõ]e|vai pr[ao]|ir pr[ao])\s+(o |a |no |na )?(.+)$/i.exec(text.trim());
+            var app = m && findApp(m[3]);
+            if (app) { runTool('abrir_app', { app: app.name }); return; }
+            if (audioPath !== '/tmp/fmtv-voice.wav') audioPath = null; // só o arquivo do voicetap (vai pra um comando root)
+            if (!audioPath) { aiShow('“' + text + '”', true, 15000); askGemini(text, alts); return; }
+            // Com áudio: o Gemini ouve a fala (a transcrição da LG vai só como pista).
+            aiShow('Entendendo…', true, 15000);
+            rootExec('base64 ' + audioPath + ' | tr -d "\\n"', function(b64) {
+                askGemini(text, alts, b64 && b64.length > 1000 ? b64 : null);
+            });
+        }
+        function askGemini(text, alts, audioB64) {
+            if (!CFG.geminiKey || typeof fetch !== 'function') { chime(true); aiShow('Configure a chave do Gemini pra eu responder.', false, 6000); return; }
+            var now = new Date();
+            var sys = 'Você é o assistente de voz da TV' + (CFG.name ? ' de ' + CFG.name : '') + ', em ' + CITY.name + '. Agora: ' +
+                DIAS[now.getDay()] + ', ' + now.getDate() + ' de ' + MESES[now.getMonth()] + ' de ' + now.getFullYear() + ', ' +
+                pad2(now.getHours()) + ':' + pad2(now.getMinutes()) + '. Se o pedido for pra controlar a TV, chame uma função. ' +
+                'Se for pergunta ou conversa, responda em português do Brasil em no máximo 2 frases curtas (até 220 caracteres), ' +
+                'direto ao ponto, sem markdown e sem emoji.\n' +
+                'A fala vem do reconhecimento de voz da TV, configurado em português, que estraga palavras em inglês e nomes próprios ' +
+                '(ex.: "Lou Fay"/"Fay"/"louvor" num pedido de música pra estudar = lo-fi; "esporte Fay"/"spot fai" = Spotify; "iu tube" = YouTube). ' +
+                'Interprete pelo som e pelo sentido, ' +
+                'e nas funções escreva a busca já corrigida e enxuta (ex.: "lofi para estudar"). Pedidos de música sem app citado vão pro Spotify; ' +
+                'vídeo vai pro YouTube. ' + (MY_PLAYLISTS.length ? 'Quando ele falar de playlist "minha", "do meu perfil" ou citar o nome de uma dele, use minha_playlist ' +
+                '(escolha a mais parecida, mesmo com a transcrição errada). ' : 'As playlists pessoais do usuário ainda não estão acessíveis: nesse caso diga isso em uma frase. ') +
+                (CFG.voiceHints ? '\nSobre o usuário: ' + CFG.voiceHints : '');
+            var tools = [{ functionDeclarations: [
+                { name: 'abrir_app', description: 'Abre um app de streaming, entrada HDMI ou app instalado na TV.',
+                    parameters: { type: 'OBJECT', properties: { app: { type: 'STRING', enum: VOICE_APPS.map(function(a) { return a.name; }) } }, required: ['app'] } },
+                { name: 'youtube', description: 'Abre o YouTube buscando um vídeo, canal, música ou assunto.',
+                    parameters: { type: 'OBJECT', properties: { busca: { type: 'STRING' } }, required: ['busca'] } },
+                { name: 'spotify', description: 'Toca no Spotify uma playlist, artista, álbum ou música (gênero, clima ou nome).',
+                    parameters: { type: 'OBJECT', properties: { busca: { type: 'STRING' },
+                        tipo: { type: 'STRING', enum: ['playlist', 'artista', 'album', 'musica'] } }, required: ['busca', 'tipo'] } },
+            ].concat(MY_PLAYLISTS.length ? [
+                { name: 'minha_playlist', description: 'Toca uma playlist do próprio usuário (do perfil dele) ou as músicas curtidas dele.',
+                    parameters: { type: 'OBJECT', properties: { nome: { type: 'STRING', enum: [LIKED].concat(MY_PLAYLISTS.map(function(p) { return p.name; })) } }, required: ['nome'] } }
+            ] : []).concat([
+                { name: 'volume', description: 'Muda o volume da TV.',
+                    parameters: { type: 'OBJECT', properties: {
+                        acao: { type: 'STRING', enum: ['aumentar', 'diminuir', 'mudo', 'tirar_mudo', 'definir'] },
+                        nivel: { type: 'INTEGER', description: '0 a 100; em aumentar/diminuir é quantos passos (padrão 3)' } }, required: ['acao'] } },
+                { name: 'desligar_tela', description: 'Apaga a tela da TV; o som continua.' }
+            ]) }];
+            function body(thinking) {
+                // Raciocínio configurável (minimal ≈ 2 s, low ≈ 5 s, medium/high mais lentos); folga de tokens pra ele não
+                // gastar tudo pensando e devolver a resposta vazia (MAX_TOKENS).
+                var gc = { temperature: 0.4, maxOutputTokens: 8192 };
+                if (thinking) gc.thinkingConfig = { thinkingLevel: CFG.voiceThinking || 'low' };
+                var parts = audioB64 ? [
+                    { text: 'O pedido está no áudio (português do Brasil, pode ter nomes em inglês). Entenda pelo que você ouve; ' +
+                        'a transcrição da TV, que costuma errar, foi: "' + (alts && alts.length ? alts.join(' | ') : text) + '".' },
+                    { inlineData: { mimeType: 'audio/wav', data: audioB64 } }
+                ] : [{ text: alts && alts.length > 1 ? 'Transcrições possíveis (a primeira é a mais provável): ' + alts.join(' | ') : text }];
+                return JSON.stringify({ systemInstruction: { parts: [{ text: sys }] }, contents: [{ role: 'user', parts: parts }], tools: tools, generationConfig: gc });
+            }
+            // Modelo da voz com limite de 15 s; se travar ou falhar, tenta o modelo leve.
+            callGemini(CFG.voiceModel || CFG.geminiModel, body(true), 15000).catch(function() {
+                return callGemini(CFG.geminiModel, body(false), 10000);
+            }).then(function(j) {
+                var parts = (j.candidates && j.candidates[0].content && j.candidates[0].content.parts) || [];
+                for (var i = 0; i < parts.length; i++) {
+                    if (parts[i].functionCall) { runTool(parts[i].functionCall.name, parts[i].functionCall.args || {}); return; }
+                }
+                var t = parts.map(function(p) { return p.text || ''; }).join(' ').replace(/\s+/g, ' ').trim();
+                if (t) aiAnswer(t);
+                else { chime(true); aiShow('Não consegui responder agora.', false, 5000); }
+            }).catch(function() { chime(true); aiShow('Sem conexão com a IA.', false, 5000); });
+        }
+        function callGemini(model, body, ms) {
+            var ctrl = window.AbortController ? new AbortController() : null;
+            var timer = setTimeout(function() { if (ctrl) ctrl.abort(); }, ms);
+            return fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(CFG.geminiKey), {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, signal: ctrl ? ctrl.signal : undefined
+            }).then(function(res) { return res.json(); }).then(function(j) {
+                clearTimeout(timer);
+                if (!j.candidates) throw new Error((j.error && j.error.message) || 'sem resposta');
+                return j;
+            }, function(e) { clearTimeout(timer); throw e; });
+        }
+        function runTool(name, a) {
+            var AUDIO = 'luna-send -n 1 luna://com.webos.service.audio/master/';
+            if (name === 'abrir_app') {
+                var app = findApp(a.app || '');
+                if (!app) { chime(true); aiShow('Não achei o app ' + (a.app || '') + '.', false, 5000); return; }
+                aiAnswer('Abrindo ' + app.name + '.');
+                setTimeout(function() { launch(app.id, null, app.name); }, 700);
+            } else if (name === 'youtube') {
+                // O YouTube da TV só abre direto um vídeo (v=<id>): o curl da TV busca e pega o primeiro resultado.
+                var q = String(a.busca || '').replace(/[^\w\sÀ-ÿ-]/g, ' ').trim();
+                aiShow('Procurando “' + q + '” no YouTube…', true, 15000);
+                rootExec('curl -s -m 8 -A "Mozilla/5.0" -H "Accept-Language: pt-BR" "https://www.youtube.com/results?search_query=' +
+                    encodeURIComponent(q) + '" | grep -oE \'"videoId":"[A-Za-z0-9_-]{11}"\' | head -1 | cut -d\'"\' -f4', function(out) {
+                    var id = (out || '').trim();
+                    if (/^[\w-]{11}$/.test(id)) {
+                        aiAnswer('Tocando “' + q + '” no YouTube.');
+                        setTimeout(function() { launch('youtube.leanback.v4', { contentTarget: 'v=' + id }, 'YouTube'); }, 700);
+                    } else {
+                        chime(true);
+                        aiShow('Não achei esse vídeo; abrindo o YouTube.', false, 5000);
+                        setTimeout(function() { launch('youtube.leanback.v4', null, 'YouTube'); }, 700);
+                    }
+                });
+            } else if (name === 'spotify') {
+                // Busca com a Web API (client credentials, sem login) e abre o app da TV direto no item (contentTarget = URI).
+                var sq = String(a.busca || '').replace(/[^\w\sÀ-ÿ-]/g, ' ').trim();
+                var st = { playlist: 'playlist', artista: 'artist', album: 'album', musica: 'track' }[a.tipo] || 'playlist';
+                if (!CFG.spotifyClientId || !CFG.spotifyClientSecret) {
+                    chime(true);
+                    aiShow('Falta configurar o Spotify; abrindo o app.', false, 5000);
+                    setTimeout(function() { launch('spotify-beehive', null, 'Spotify'); }, 700);
+                    return;
+                }
+                aiShow('Procurando “' + sq + '” no Spotify…', true, 15000);
+                rootExec(spotifyTokenSh() +
+                    'curl -s -m 8 -H "Authorization: Bearer $TK" "https://api.spotify.com/v1/search?type=' + st + '&limit=5&market=BR&q=' + encodeURIComponent(sq) + '"' +
+                    ' | grep -oE \'spotify:' + st + ':[A-Za-z0-9]{22}\' | head -1', function(out) {
+                    var uri = (out || '').trim();
+                    if (/^spotify:\w+:[A-Za-z0-9]{22}$/.test(uri)) {
+                        aiAnswer('Tocando “' + sq + '” no Spotify.');
+                        setTimeout(function() { launch('spotify-beehive', { contentTarget: uri }, 'Spotify'); }, 700);
+                    } else {
+                        chime(true);
+                        aiShow('Não achei no Spotify; abrindo o app.', false, 5000);
+                        setTimeout(function() { launch('spotify-beehive', null, 'Spotify'); }, 700);
+                    }
+                });
+            } else if (name === 'minha_playlist') {
+                var pl = null, want = norm(a.nome || '');
+                if (want === norm(LIKED)) pl = { name: LIKED, uri: 'spotify:collection:tracks' };
+                for (var k = 0; !pl && k < MY_PLAYLISTS.length; k++) if (norm(MY_PLAYLISTS[k].name) === want) pl = MY_PLAYLISTS[k];
+                if (!pl) { chime(true); aiShow('Não achei essa playlist no seu perfil.', false, 5000); return; }
+                aiAnswer('Tocando “' + pl.name + '” no Spotify.');
+                setTimeout(function() { launch('spotify-beehive', { contentTarget: pl.uri }, 'Spotify'); }, 700);
+            } else if (name === 'volume') {
+                var n = parseInt(a.nivel, 10), cmd, msg;
+                if (a.acao === 'definir' && n >= 0) { cmd = AUDIO + 'setVolume \'{"volume":' + Math.min(100, n) + '}\''; msg = 'Volume em ' + Math.min(100, n) + '.'; }
+                else if (a.acao === 'mudo' || a.acao === 'tirar_mudo') { cmd = AUDIO + 'setMuted \'{"muted":' + (a.acao === 'mudo') + '}\''; msg = a.acao === 'mudo' ? 'Som desligado.' : 'Som ligado.'; }
+                else {
+                    var steps = n > 0 && n <= 20 ? n : 3, one = AUDIO + (a.acao === 'diminuir' ? 'volumeDown' : 'volumeUp') + " '{}'";
+                    cmd = Array(steps + 1).join(one + '; ');
+                    msg = (a.acao === 'diminuir' ? 'Abaixando' : 'Aumentando') + ' o volume.';
+                }
+                rootExec(cmd, function(out) { if (out === null) { chime(true); aiShow('Não consegui mudar o volume.', false, 5000); } else aiAnswer(msg); });
+            } else if (name === 'desligar_tela') {
+                aiAnswer('Apagando a tela.');
+                setTimeout(screenOff, 1500);
+            } else { chime(true); aiShow('Ainda não sei fazer isso.', false, 5000); }
+        }
+        document.addEventListener('webOSRelaunch', function(e) {
+            var p = e.detail || {};
+            try { if (!p.voz && window.PalmSystem) p = JSON.parse(PalmSystem.launchParams || '{}'); } catch (err) {}
+            if (p.voz) onVoice(p.voz);
+        });
+
+        // --- Apps abertos: lista o que está rodando (root) e fecha pelo botão vermelho ---
+        // Serviços do sistema que aparecem no "running" mas não são apps que a pessoa abriu.
+        var HIDDEN_RUNNING = /^(org\.webos\.freemytv|com\.webos\.app\.(home|voice|voiceagent|voiceweb|inputcommon|notificationcenter|systemui|volume|inputpicker|livemenuplayer|mediadiscovery)|com\.webos\.surfacemanager.*|com\.palm\.app\.settings|org\.webosbrew\..*|amazon\.alexapr|airplay)$/;
+        var RUNNING_NAMES = { 'com.webos.app.lgchannels': 'LG Channels', 'com.webos.app.livetv': 'TV ao vivo' };
+        var openIds = [];
+        function appLabel(id) {
+            for (var i = 0; i < DOCK.length; i++) if (DOCK[i].id === id) return { cap: DOCK[i].name, icon: DOCK[i].logo ? 'brand:' + DOCK[i].logo : 'app' };
+            for (var j = 0; j < CFG.inputs.length; j++) if (CFG.inputs[j].app === id) return { cap: CFG.inputs[j].cap, icon: CFG.inputs[j].icon };
+            var lp = LP[id];
+            return { cap: lp ? lp.title : RUNNING_NAMES[id] || id, icon: lp && lp.icon ? 'img:' + lp.icon : 'app' };
+        }
+        function refreshOpenApps() {
+            rootExec('luna-send -n 1 -w 3000 luna://com.webos.memorymanager/getCurrentMemState "{}"', function(out) {
+                var m = /"usable"\s*:\s*(\d+)/.exec(out || '');
+                var lbl = strips[OPEN_ROW] && strips[OPEN_ROW].previousSibling;
+                if (m && lbl) lbl.textContent = 'Apps abertos · ' + m[1] + ' MB livres · botão vermelho fecha';
+            });
+            rootExec('luna-send -n 1 -w 3000 luna://com.webos.applicationManager/running "{}"', function(out) {
+                var ids = [];
+                try {
+                    (JSON.parse(out).running || []).forEach(function(a) { if (a.id && !HIDDEN_RUNNING.test(a.id)) ids.push(a.id); });
+                } catch (e) { return; }
+                openIds = ids;
+                var row = OPEN_ROW;
+                strips[row].innerHTML = '';
+                grid[row] = []; actions[row] = [];
+                if (!ids.length) addRailItem(row, { icon: 'app', cap: 'Nenhum app aberto', action: 'none' });
+                ids.forEach(function(id) { var l = appLabel(id); addRailItem(row, { icon: l.icon, cap: l.cap, app: id }); });
+                if (ids.length > 1) addRailItem(row, { icon: 'moon', cap: 'Fechar todos', action: 'closeAll', ids: ids });
+                if (r === row) { c = Math.min(c, grid[row].length - 1); cols[row] = c; }
+                render();
+            });
+        }
+        function closeApps(ids) {
+            var cmd = ids.map(function(id) {
+                return 'luna-send -n 1 -w 3000 luna://com.webos.applicationManager/closeByAppId \'{"id":"' + id + '"}\'';
+            }).join('; ');
+            showToast(ids.length > 1 ? 'Fechando ' + ids.length + ' apps…' : 'Fechando ' + appLabel(ids[0]).cap + '…', 2500);
+            rootExec(cmd, function() { setTimeout(refreshOpenApps, 800); });
+        }
+
         // --- Navegação por setas ---
-        var r = 0, c = 0, cols = [0, 0, 0, 0];
+        var r = 0, c = 0, cols = [0, 0, 0, 0, 0];
         var deck = $('deck');
         function go(nr, nc) { r = nr; c = nc; cols[r] = nc; render(); }
         function render() {
@@ -708,6 +1028,7 @@
                 e.preventDefault();
                 return;
             }
+            if (k === 403 && r === OPEN_ROW && openIds[c]) { closeApps([openIds[c]]); e.preventDefault(); return; } // botão vermelho
             var n = grid[r].length;
             if (k === 39) { if (c < n - 1) go(r, c + 1); }
             else if (k === 37) { if (c > 0) go(r, c - 1); }
@@ -721,7 +1042,9 @@
 
         // Ao voltar pro launcher, atualiza hora/clima e acorda
         document.addEventListener('visibilitychange', function() {
-            if (!document.hidden) { tick(); fetchWeather(); if (r === 0) focusLearned(); }
+            // Fora da frente, solta o vídeo de fundo: libera ~60 MB e ~9% de CPU pros outros apps (menos apps fechados por memória).
+            if (document.hidden) { aerial.pause(); aerial.removeAttribute('src'); aerial.load(); return; }
+            tick(); fetchWeather(); refreshOpenApps(); playAerial(); if (r === 0) focusLearned();
         });
 
         $('wxCity').textContent = 'Clima · ' + CITY.name;
@@ -733,6 +1056,9 @@
         setInterval(pixelShift, 60 * 1000);
         playAerial();
         discoverApps();
+        loadMyPlaylists();
+        refreshOpenApps();
+        setInterval(loadMyPlaylists, 6 * 60 * 60 * 1000);
         if (CFG.rootDaemon) installDaemon();
         render();
         focusLearned();

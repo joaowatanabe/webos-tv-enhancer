@@ -33,6 +33,20 @@ window.LAUNCHER_DEFAULTS = {
     // Atenção: a chave vai dentro do .ipk instalado na TV. Restrinja-a à Generative Language API.
     geminiKey: '',
     geminiModel: 'gemini-flash-lite-latest',
+    // Modelo do assistente de voz: mais capaz que o da frase do dia (entende melhor a transcrição da LG).
+    // Se demorar mais de 15 s, cai pro geminiModel.
+    // O launcher manda o ÁUDIO da fala (não só a transcrição da LG): o flash-lite entende bem e responde em ~1,5 s.
+    voiceModel: 'gemini-3.5-flash-lite',
+    // Quanto o modelo pensa antes de responder: 'minimal' (~2 s), 'low' (~5 s), 'medium', 'high' (mais lento e mais esperto).
+    voiceThinking: 'low',
+    // Dicas pessoais pro assistente entender a transcrição (gostos, nomes que a TV erra). Ex.:
+    // 'Ouço lo-fi pra estudar: "louvor" e "Lou Fay" quase sempre são lo-fi.'
+    voiceHints: '',
+
+    // Spotify pelo assistente de voz (opcional): crie um app grátis em https://developer.spotify.com/dashboard
+    // e copie o Client ID e o Client Secret. Serve só pra busca; a música toca no app do Spotify da TV.
+    spotifyClientId: '',
+    spotifyClientSecret: '',
 
     // Recursos que exigem TV com root + Homebrew Channel (veja docs/specs/001-home-daemon.md):
     // abrir sempre no launcher e botão "Home da LG".
