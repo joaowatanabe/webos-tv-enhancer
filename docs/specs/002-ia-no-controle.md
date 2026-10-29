@@ -5,6 +5,24 @@
 ## Objetivo
 Apertar um botão do Magic Remote, falar, e receber resposta de uma IA mais capaz que a da TV (Gemini, por custo zero de cota Claude), na tela do launcher.
 
+## Escopo (João, 2026-10-28)
+Duas coisas pelo mesmo botão:
+1. **Perguntas livres:** resposta curta na tela.
+2. **Controlar a TV:** abrir apps, abrir um vídeo/série específica, tocar uma playlist no Spotify, volume, desligar etc.
+
+O Gemini recebe a frase e devolve uma **chamada de função** (function calling), ou texto quando é pergunta. O launcher executa a função com o root (`hbchannel exec` → `luna-send`).
+
+| Função | Como executar | Confiança |
+|---|---|---|
+| `abrir_app(app)` | `applicationManager/launch {id}` (ids já mapeados no dock) | alta |
+| `youtube(busca ou vídeo)` | YouTube aceita `contentTarget` com `v=<id>`; busca via YouTube Data API ou abre a tela de busca | alta |
+| `netflix(título)` | `contentTarget` `m=https://www.netflix.com/watch/<id>` ou `/title/<id>`; o id vem de busca (TMDB/JustWatch ou o próprio Gemini com grounding) | média |
+| `prime/disney/max(título)` | deep link varia por app; fallback: abrir o app na busca | baixa → testar |
+| `spotify(playlist/artista)` | Spotify Web API (Connect): manda tocar no device "TV" (precisa de OAuth uma vez; refresh token guardado). Deep link `spotify:` no app da TV como alternativa | média |
+| `volume`, `mudo`, `desligar`, `entrada HDMI` | `audio/setVolume`, `system/turnOff`, launch `com.webos.app.hdmi1` | alta |
+
+Spike extra: testar `contentTarget` de cada streaming instalado antes do MVP.
+
 ## Restrições conhecidas
 - O microfone do controle é capturado pelo sistema (serviço de voz da LG / ThinQ AI), não por apps web. Um app do Developer Mode não recebe áudio do controle por padrão.
 - O botão de microfone dispara o assistente da LG; o Google Assistant e a Alexa vêm como apps do sistema.
