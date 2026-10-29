@@ -9,6 +9,7 @@
     <script src="webOSTV.js"></script>
     <script src="config.example.js"></script>
     <script src="config.js"></script>
+    <script src="aerials.js"></script>
     <style>
         /* Launcher estilo Apple TV — design aprovado em 2026-10-28.
            Tela fixa 1920x1080; o deck rola por dentro (home + 3 fileiras).
@@ -197,8 +198,10 @@
             display: none; align-items: center; justify-content: center; }
         body.picking .picker { display: flex; }
         .pk { width: 640px; padding: 34px 30px 26px; border-radius: 34px; background: rgba(16,18,24,.94); border: 1px solid var(--panel-line); }
+        .pk-view { height: 768px; overflow: hidden; } /* 8 itens visíveis; a lista rola só com transform */
+        #pkList { transition: transform .2s ease; }
         .pk h2 { font-size: 30px; font-weight: 600; margin: 0 10px 20px; }
-        .pk-i { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-radius: 18px; font-size: 24px; color: var(--ink-dim); }
+        .pk-i { display: flex; align-items: center; justify-content: space-between; height: 96px; box-sizing: border-box; padding: 0 22px; border-radius: 18px; font-size: 24px; color: var(--ink-dim); }
         .pk-i small { font-size: 18px; color: var(--ink-faint); }
         .pk-i.on { background: #fff; color: #000; }
         .pk-i.on small { color: #444; }
@@ -239,7 +242,7 @@
 
     <div class="toast" id="toast"></div>
 
-    <div class="picker" id="picker"><div class="pk"><h2>Plano de fundo</h2><div id="pkList"></div></div></div>
+    <div class="picker" id="picker"><div class="pk"><h2>Plano de fundo</h2><div class="pk-view"><div id="pkList"></div></div></div></div>
 
 
 
@@ -295,36 +298,12 @@
             ] }
         ];
 
-        // Aerials da Apple (H.264 2K) por streaming HTTPS — nada ocupa o disco da TV.
-        // Catálogo tirado do Lumen, agrupado pro seletor de plano de fundo.
-        var SYLVAN = 'https://sylvan.apple.com/Videos/';
-        var AERIAL_SETS = {
-            espaco: ['comp_GMT026_363A_103NC_E1027_KOREA_JAPAN_NIGHT_v18_SDR_PS_20180907_SDR_2K_AVC.mov', 'comp_GMT312_162NC_139M_1041_AFRICA_NIGHT_v14_SDR_FINAL_20180706_SDR_2K_AVC.mov',
-                'comp_A009_C001_010181A_v09_SDR_PS_FINAL_20180725_SDR_2K_AVC.mov', 'comp_GMT329_113NC_396B_1105_ITALY_v03_SDR_FINAL_20180706_SDR_2K_AVC.mov',
-                'comp_A105_C002_v06_SDR_FINAL_25062018_SDR_2K_AVC.mov', 'comp_GMT314_139M_170NC_NORTH_AMERICA_AURORA__COMP_v22_SDR_20181206_v12CC_SDR_2K_AVC.mov',
-                'comp_A001_C004_1207W5_v23_SDR_FINAL_20180706_SDR_2K_AVC.mov', 'comp_A083_C002_1130KZ_v04_SDR_PS_FINAL_20180725_SDR_2K_AVC.mov',
-                'comp_GMT308_139K_142NC_CARIBBEAN_DAY_v09_SDR_FINAL_22062018_SDR_2K_AVC.mov', 'comp_GMT306_139NC_139J_3066_CALI_TO_VEGAS_v08_SDR_PS_20180824_SDR_2K_AVC.mov',
-                'comp_GMT329_117NC_401C_1037_IRELAND_TO_ASIA_v48_SDR_PS_FINAL_20180725_F0F6300_SDR_2K_AVC.mov', 'comp_A050_C004_1027V8_v16_SDR_FINAL_20180706_SDR_2K_AVC.mov',
-                'comp_A105_C003_0212CT_FLARE_v10_SDR_PS_FINAL_20180711_SDR_2K_AVC.mov', 'comp_A351_C001_v06_SDR_PS_20180725_SDR_2K_AVC.mov',
-                'comp_A001_C001_120530_v04_SDR_FINAL_20180706_SDR_2K_AVC.mov', 'comp_GMT110_112NC_364D_1054_AURORA_ANTARTICA__COMP_FINAL_v34_PS_SDR_20181107_SDR_2K_AVC.mov',
-                'comp_A103_C002_0205DG_v12_SDR_FINAL_20180706_SDR_2K_AVC.mov', 'comp_GMT307_136NC_134K_8277_NY_NIGHT_01_v25_SDR_PS_20180907_SDR_2K_AVC.mov',
-                'comp_GMT060_117NC_363D_1034_AUSTRALIA_v35_SDR_PS_FINAL_20180731_SDR_2K_AVC.mov', 'comp_A114_C001_0305OT_v10_SDR_FINAL_22062018_SDR_2K_AVC.mov'],
-            oceano: ['SE_A016_C009_SDR_20190717_SDR_2K_AVC.mov', 'PA_A001_C007_SDR_20190717_SDR_2K_AVC.mov', 'PA_A004_C003_SDR_20190719_SDR_2K_AVC.mov',
-                'KP_A010_C002_SDR_20190717_SDR_2K_AVC.mov', 'BO_A018_C029_SDR_20190812_SDR_2K_AVC.mov', 'BO_A012_C031_SDR_20190726_SDR_2K_AVC.mov',
-                'BO_A014_C008_SDR_20190719_SDR_2K_AVC.mov', 'BO_A014_C023_SDR_20190717_F240F3709_SDR_2K_AVC.mov', 'g201_WH_D004_L014_SDR_20191031_SDR_2K_AVC.mov',
-                'DL_B002_C011_SDR_20191122_SDR_2K_AVC.mov', 'RS_A008_C010_SDR_20191218_SDR_2K_AVC.mov', 'MEX_A006_C008_SDR_20190923_SDR_2K_AVC.mov',
-                'g201_CA_A016_C002_SDR_20191114_SDR_2K_AVC.mov', 'g201_AK_A003_C014_SDR_20191113_SDR_2K_AVC.mov', 'FK_U009_C004_SDR_20191220_SDR_2K_AVC.mov',
-                'CR_A009_C007_SDR_20191113_SDR_2K_AVC.mov'],
-            paisagens: ['G007_C004_UHD_SDR_2K_AVC.mov', 'P001_C005_UHD_SDR_2K_AVC.mov', 'Y004_C015_SDR_2K_AVC.mov', 'S003_C020_SDR_2K_AVC.mov',
-                'g201_TH_803_A001_8_SDR_20191031_SDR_2K_AVC.mov', 'comp_N013_C004_PS_v01_SDR_PS_20180925_F1970F7193_SDR_2K_AVC.mov']
-        };
-        var WALLPAPERS = [
-            { key: 'tudo', name: 'Aleatório', sub: 'todos os aerials' },
-            { key: 'espaco', name: 'Terra vista do espaço', sub: AERIAL_SETS.espaco.length + ' vídeos' },
-            { key: 'oceano', name: 'Fundo do mar', sub: AERIAL_SETS.oceano.length + ' vídeos' },
-            { key: 'paisagens', name: 'Paisagens', sub: AERIAL_SETS.paisagens.length + ' vídeos' },
-            { key: 'preto', name: 'Preto (OLED)', sub: 'sem vídeo, gasto mínimo' }
-        ];
+        // Vídeos de fundo: catálogo em aerials.js (AERIAL_CATS / AERIAL_SETS com URLs completas).
+        var WALLPAPERS = [{ key: 'tudo', name: 'Aleatório', sub: 'mistura todas as paisagens' }];
+        for (var wi = 0; wi < AERIAL_CATS.length; wi++) {
+            WALLPAPERS.push({ key: AERIAL_CATS[wi].key, name: AERIAL_CATS[wi].name, sub: AERIAL_SETS[AERIAL_CATS[wi].key].length + ' vídeos' });
+        }
+        WALLPAPERS.push({ key: 'preto', name: 'Preto (OLED)', sub: 'sem vídeo, gasto mínimo' });
 
         function load(key, fallback) {
             try { var v = JSON.parse(localStorage.getItem(key)); return v === null ? fallback : v; } catch (e) { return fallback; }
@@ -428,7 +407,11 @@
         var wallpaper = load('fmtv_wallpaper', 'tudo'), playlist = [], aerialFails = 0;
         var aerial = $('aerial');
         function buildPlaylist() {
-            var list = wallpaper === 'tudo' ? AERIAL_SETS.espaco.concat(AERIAL_SETS.oceano, AERIAL_SETS.paisagens) : (AERIAL_SETS[wallpaper] || []);
+            var list = [];
+            if (wallpaper === 'tudo') {
+                for (var i0 = 0; i0 < AERIAL_SHUFFLE.length; i0++) list = list.concat(AERIAL_SETS[AERIAL_SHUFFLE[i0]] || []);
+            } else list = AERIAL_SETS[wallpaper] || [];
+            if (!list.length && wallpaper !== 'preto') { wallpaper = 'tudo'; return buildPlaylist(); } // chave antiga/sumida
             playlist = list.slice();
             for (var i = playlist.length - 1; i > 0; i--) { // embaralha
                 var j = Math.floor(Math.random() * (i + 1)), t = playlist[i];
@@ -439,7 +422,7 @@
             aerial.className = '';
             if (wallpaper === 'preto') { aerial.pause(); aerial.removeAttribute('src'); aerial.load(); return; }
             if (!playlist.length) buildPlaylist();
-            var next = SYLVAN + playlist.shift();
+            var next = playlist.shift(); // URL completa (Apple, comunidade ou Fire TV)
             setTimeout(function() {
                 aerial.src = next;
                 var p = aerial.play();
@@ -462,6 +445,9 @@
                 return '<div class="pk-i' + (i === pkIdx ? ' on' : '') + '"><span>' + w.name + '<br><small>' + w.sub + '</small></span>' +
                     (w.key === wallpaper ? '<span class="ck">✓</span>' : '') + '</div>';
             }).join('');
+            // Rola mantendo o item focado visível (8 de 96px na janela de 768px).
+            var top = Math.max(0, Math.min(pkIdx - 3, WALLPAPERS.length - 8));
+            $('pkList').style.transform = 'translateY(' + (-top * 96) + 'px)';
         }
         function openPicker() {
             pkIdx = 0;
