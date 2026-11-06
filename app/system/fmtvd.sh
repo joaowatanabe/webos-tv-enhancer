@@ -4,7 +4,7 @@
 #   2. TV ligou (saiu do standby)                  -> abre o launcher
 #   3. Botão de microfone (qualquer app) -> voiceagent.js grava o áudio, o Gemini entende e a ação é executada
 #      (fallback, se o Input Hook não esconder a tecla: com o launcher na frente, repassa a transcrição da LG)
-#   O protetor de tela fica por conta da LG (o daemon não interfere).
+#   4. Protetor de tela da LG com o launcher na frente -> barrado (o launcher tem o modo ocioso e apaga a tela sozinho)
 # Arquivos de controle (o launcher cria/remove via hbchannel exec):
 #   $DIR/autostart-off        existe = itens 1 e 2 desligados
 #   /tmp/fmtv-home-bypass     existe = deixa a home da LG abrir até você trocar de app
@@ -69,6 +69,18 @@ watch_power() {
     done
 }
 
+watch_screensaver() {
+    luna-send -i luna://com.webos.service.tvpower/power/registerScreenSaverRequest '{"subscribe":true,"clientName":"fmtvd"}' 2>/dev/null |
+    while read -r line; do
+        ts=$(echo "$line" | sed -n 's/.*"timestamp": *\([0-9]*\).*/\1/p')
+        [ -z "$ts" ] && continue
+        if [ "$(cat "$FG" 2>/dev/null)" = "$APP" ]; then ack=false; else ack=true; fi
+        luna-send -n 1 luna://com.webos.service.tvpower/power/responseScreenSaverRequest \
+            "{\"clientName\":\"fmtvd\",\"ack\":$ack,\"timestamp\":$ts}" >/dev/null 2>&1
+        log "protetor da LG pedido: ack=$ack"
+    done
+}
+
 notify() {
     # Empurra um evento pro launcher (chega como webOSRelaunch; não passa pela trava anti-loop).
     luna-send -n 1 luna://com.webos.applicationManager/launch "{\"id\":\"$APP\",\"params\":{\"voz\":$1}}" >/dev/null 2>&1
@@ -123,6 +135,7 @@ forever() { while true; do "$1"; sleep 5; done; }
 log "fmtvd iniciado (pid $$)"
 forever watch_foreground &
 forever watch_power &
+forever watch_screensaver &
 forever watch_voice &
 forever watch_agent &
 

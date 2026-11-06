@@ -50,5 +50,9 @@ window.LAUNCHER_DEFAULTS = {
 
     // Recursos que exigem TV com root + Homebrew Channel (veja docs/specs/001-home-daemon.md):
     // abrir sempre no launcher e botão "Home da LG".
+    // Modo ocioso: minutos sem tocar no controle até o vídeo assumir, e minutos nesse modo até apagar a tela.
+    idleMinutes: 2,
+    screenOffMinutes: 30,
+
     rootDaemon: false
 };

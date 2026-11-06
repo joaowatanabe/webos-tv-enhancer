@@ -59,7 +59,7 @@
         body:not(.in-dock) .bg .scrim { opacity: 1; }
 
         /* --- Tela / deck rolável --- */
-        .screen { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; z-index: 2; overflow: hidden; transition: opacity .9s ease; }
+        .screen { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; z-index: 2; overflow: hidden; transition: opacity .4s ease; }
         /* Só transform/opacity animam liso no Chromium 79 da TV; o deck fica numa camada da GPU. */
         .deck { position: relative; transition: transform .42s cubic-bezier(.22, .8, .24, 1); will-change: transform; }
 
@@ -206,10 +206,25 @@
         .pk-i.on { background: #fff; color: #000; }
         .pk-i.on small { color: #444; }
         .pk-i .ck { font-weight: 700; }
+
+        /* --- Modo ocioso: o vídeo assume e sobra só o cartão de vidro (sem blur: faixa preta e lentidão na TV) --- */
+        body.idle .screen { opacity: 0; transition: opacity 1.5s ease; }
+        body.idle .bg::after, body.idle .bg .scrim { opacity: 0; }
+        .idle-card { position: absolute; z-index: 3; display: flex; align-items: center; padding: 22px 36px; border-radius: 34px;
+            background: rgba(12,14,20,.42); border: 1px solid rgba(255,255,255,.14); opacity: 0; transition: opacity 1.2s ease; pointer-events: none; }
+        body.idle .idle-card.show { opacity: 1; }
+        .idle-card.p0 { left: 88px; top: 76px; }
+        .idle-card.p1 { right: 88px; top: 76px; }
+        .idle-card.p2 { right: 88px; bottom: 76px; }
+        .idle-card.p3 { left: 88px; bottom: 76px; }
+        .idle-t { font-size: 66px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+        .idle-w { margin-left: 28px; padding-left: 28px; border-left: 1px solid rgba(255,255,255,.18); font-size: 25px; line-height: 1.32; color: rgba(245,247,252,.8); }
     </style>
 </head>
 <body class="in-dock">
     <div class="bg"><video id="aerial" muted playsinline preload="auto"></video><div class="dim"></div><div class="scrim"></div></div>
+
+    <div class="idle-card p1" id="idleCard"><div class="idle-t" id="idleTime"></div><div class="idle-w" id="idleWx"></div></div>
 
     <div class="screen" id="screen"><div class="deck" id="deck">
         <section class="home">
@@ -348,6 +363,7 @@
             var hi = h < 5 ? 'Boa noite' : h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
             $('greet').textContent = CFG.name ? hi + ', ' + CFG.name : hi;
             document.body.classList.toggle('night', h >= 22 || h < 6);
+            updateIdleCard();
         }
 
         // --- Clima (Open-Meteo) ---
@@ -761,6 +777,7 @@
             return null;
         }
         function onVoice(v) {
+            noteActivity();
             if (v.evento === 'ouvindo') aiShow('Ouvindo…', true, 15000);
             // Eventos do voiceagent (assistente em qualquer app): ele já executou a ação, aqui só mostra.
             else if (v.evento === 'pensando') aiShow('Entendendo…', true, 15000);
@@ -1003,6 +1020,70 @@
             $('screen').style.transform = 'translate(' + p[0] + 'px,' + p[1] + 'px)';
         }
 
+        // --- Modo ocioso: sem tocar no controle, o vídeo vira descanso de tela e depois a tela apaga ---
+        var IDLE_MS = (CFG.idleMinutes || 2) * 60000, OFF_MS = (CFG.screenOffMinutes || 30) * 60000, CARD_MS = 5 * 60000;
+        var idleState = 0; // 0 = home normal, 1 = ocioso, 2 = tela apagada
+        var lastInput = Date.now(), idleSince = 0, cardMoved = 0, cardPos = 1, mouseX = -1, mouseY = -1;
+        function updateIdleCard() {
+            $('idleTime').textContent = $('clock').textContent;
+            var temp = $('wxTemp').textContent;
+            $('idleWx').innerHTML = '';
+            if (temp === '--°') { $('idleWx').style.display = 'none'; return; }
+            $('idleWx').style.display = '';
+            $('idleWx').appendChild(document.createTextNode(temp + ' ' + $('wxDesc').textContent));
+            $('idleWx').appendChild(document.createElement('br'));
+            $('idleWx').appendChild(document.createTextNode(CITY.name));
+        }
+        function enterIdle() {
+            idleState = 1; idleSince = cardMoved = Date.now();
+            updateIdleCard();
+            document.body.classList.add('idle');
+            $('idleCard').classList.add('show');
+        }
+        function moveIdleCard() {
+            // Muda de canto com fade: posição não anima liso na TV e o OLED não fica com nada parado.
+            cardMoved = Date.now();
+            $('idleCard').classList.remove('show');
+            setTimeout(function() {
+                $('idleCard').classList.remove('p' + cardPos);
+                cardPos = (cardPos + 1) % 4;
+                $('idleCard').classList.add('p' + cardPos);
+                if (idleState === 1) $('idleCard').classList.add('show');
+            }, 1300);
+        }
+        function noteActivity() {
+            var was = idleState;
+            lastInput = Date.now();
+            if (!was) return false;
+            idleState = 0;
+            document.body.classList.remove('idle');
+            $('idleCard').classList.remove('show');
+            if (was === 2 && !document.hidden && aerial.src) { var p = aerial.play(); if (p && p.catch) p.catch(function() {}); }
+            return true;
+        }
+        function idleCheck() {
+            if (document.hidden) return;
+            var now = Date.now();
+            if (idleState === 0) {
+                var busy = document.body.classList.contains('picking') || document.body.classList.contains('ai-on');
+                if (busy) lastInput = now;
+                else if (now - lastInput >= IDLE_MS) enterIdle();
+            } else if (idleState === 1) {
+                if (now - idleSince >= OFF_MS) { idleState = 2; aerial.pause(); screenOff(); } // pausado pra não baixar vídeo com a tela apagada
+                else if (now - cardMoved >= CARD_MS) moveIdleCard();
+            }
+        }
+        // O primeiro toque só acorda: não abre nada nem move o foco.
+        document.addEventListener('keydown', function(e) {
+            if (noteActivity()) { e.preventDefault(); e.stopPropagation(); }
+        }, true);
+        document.addEventListener('mousemove', function(e) {
+            // O Chromium repete mousemove sem o ponteiro sair do lugar quando a tela muda: só vale movimento real.
+            if (e.screenX === mouseX && e.screenY === mouseY) return;
+            mouseX = e.screenX; mouseY = e.screenY;
+            noteActivity();
+        });
+
         document.addEventListener('keydown', function(e) {
             var k = e.keyCode;
             if (document.body.classList.contains('picking')) {
@@ -1029,6 +1110,7 @@
         // Ao voltar pro launcher, atualiza hora/clima e acorda
         document.addEventListener('visibilitychange', function() {
             // Fora da frente, solta o vídeo de fundo: libera ~60 MB e ~9% de CPU pros outros apps (menos apps fechados por memória).
+            noteActivity();
             if (document.hidden) { aerial.pause(); aerial.removeAttribute('src'); aerial.load(); return; }
             tick(); fetchWeather(); refreshOpenApps(); playAerial(); if (r === 0) focusLearned();
         });
@@ -1040,6 +1122,7 @@
         fetchWeather();
         setInterval(fetchWeather, 20 * 60 * 1000);
         setInterval(pixelShift, 60 * 1000);
+        setInterval(idleCheck, 5000);
         playAerial();
         discoverApps();
         loadMyPlaylists();
